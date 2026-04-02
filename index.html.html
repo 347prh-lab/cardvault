@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CardVault</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a26;--border:#2a2a40;
+  --accent:#7c5cfc;--accent2:#fc5c7d;--accent3:#5cfc9a;
+  --text:#e8e8f0;--text2:#8888aa;
+  --red:#fc5c5c;--blue:#5c9afc;--green:#5cfc7c;--yellow:#fcd05c;--purple:#c05cfc;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Zen Kaku Gothic New',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;z-index:0;
+  background-image:linear-gradient(rgba(124,92,252,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(124,92,252,.04) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;}
+#app{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh;}
+
+/* NAV */
+nav{display:flex;align-items:center;padding:0 12px;height:52px;border-bottom:1px solid var(--border);
+  background:rgba(10,10,15,.9);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:15px;color:var(--accent);
+  letter-spacing:2px;margin-right:auto;text-shadow:0 0 16px rgba(124,92,252,.6);}
+.nav-tabs{display:flex;}
+.nav-tab{padding:0 12px;height:52px;display:flex;align-items:center;font-size:12px;font-weight:700;
+  letter-spacing:.5px;color:var(--text2);cursor:pointer;border:none;background:none;
+  border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.nav-btn{margin-left:8px;padding:6px 12px;background:var(--accent);color:#fff;border:none;
+  border-radius:7px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.nav-btn:active{background:#9370ff;}
+.sync-indicator{width:8px;height:8px;border-radius:50%;background:var(--accent3);margin-left:8px;
+  box-shadow:0 0 6px var(--accent3);flex-shrink:0;}
+.sync-indicator.syncing{background:var(--yellow);box-shadow:0 0 6px var(--yellow);animation:pulse .8s infinite;}
+.sync-indicator.error{background:var(--red);box-shadow:0 0 6px var(--red);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* PAGES */
+.page{display:none;padding:20px 12px;flex:1;}
+.page.active{display:block;}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;}
+.page-title{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;letter-spacing:1px;white-space:nowrap;}
+.page-title span{color:var(--accent);}
+.search-input{padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg2);
+  color:var(--text);font-family:inherit;font-size:11px;outline:none;width:100%;max-width:160px;transition:border-color .2s;}
+.search-input:focus{border-color:var(--accent);}
+.search-input::placeholder{color:var(--text2);}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
+.filter-chip{padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--bg2);
+  color:var(--text2);font-size:10px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.filter-chip.active,.filter-chip:hover{border-color:var(--accent);color:var(--accent);background:rgba(124,92,252,.12);}
+.filter-sep{width:1px;height:18px;background:var(--border);margin:0 1px;}
+
+/* CARD GRID */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;}
+.card-item{position:relative;cursor:pointer;transition:transform .2s;}
+.card-item:active{transform:translateY(-3px);}
+.card-thumb{width:100%;aspect-ratio:5/7;border-radius:8px;overflow:hidden;position:relative;
+  border:2px solid var(--border);background:var(--bg3);transition:border-color .2s,box-shadow .2s;}
+.card-item:hover .card-thumb{border-color:var(--accent);box-shadow:0 0 16px rgba(124,92,252,.3);}
+.card-thumb img{width:100%;height:100%;object-fit:cover;}
+.no-img{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:24px;}
+.card-color-bar{position:absolute;bottom:0;left:0;right:0;height:3px;}
+.card-level-badge{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.8);color:var(--accent);
+  font-family:'Orbitron',monospace;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;
+  border:1px solid rgba(124,92,252,.4);}
+.card-type-badge{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.8);color:var(--text2);
+  font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;border:1px solid var(--border);}
+.card-delete-btn{position:absolute;bottom:3px;right:3px;background:rgba(252,92,92,.9);
+  color:#fff;border:none;width:22px;height:22px;border-radius:5px;font-size:11px;cursor:pointer;
+  z-index:10;display:none;align-items:center;justify-content:center;}
+.card-item:hover .card-delete-btn{display:flex;}
+@media(hover:none){.card-delete-btn{display:flex;}}
+.card-name{margin-top:4px;font-size:10px;font-weight:700;text-align:center;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* DECK GRID */
+.deck-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;}
+.deck-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:all .2s;}
+.deck-cover{width:100%;aspect-ratio:3/4;background:var(--bg3);position:relative;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--text2);cursor:pointer;}
+.deck-cover img{width:100%;height:100%;object-fit:cover;}
+.deck-cover-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.8) 0%,transparent 50%);}
+.deck-info{padding:10px 12px 12px;}
+.deck-name{font-size:13px;font-weight:700;margin-bottom:4px;}
+.deck-count{font-size:10px;color:var(--text2);margin-bottom:8px;}
+.deck-count span{color:var(--accent);font-family:'Orbitron',monospace;}
+.deck-actions{display:flex;gap:6px;}
+.deck-edit-btn,.deck-delete-btn{flex:1;padding:5px 0;border-radius:6px;border:1px solid var(--border);
+  font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;transition:all .15s;}
+.deck-edit-btn{background:rgba(124,92,252,.15);color:var(--accent);border-color:rgba(124,92,252,.3);}
+.deck-delete-btn{background:rgba(252,92,92,.1);color:var(--red);border-color:rgba(252,92,92,.3);}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.8);
+  backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:20px 20px 0 0;
+  padding:20px 16px 32px;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;
+  animation:sheetUp .28s ease;}
+@keyframes sheetUp{from{opacity:0;transform:translateY(60px);}to{opacity:1;transform:translateY(0);}}
+.modal::before{content:'';display:block;width:40px;height:4px;background:var(--border);
+  border-radius:2px;margin:0 auto 16px;}
+.modal h2{font-family:'Orbitron',monospace;font-size:15px;font-weight:700;color:var(--accent);
+  margin-bottom:20px;letter-spacing:1px;}
+.form-group{margin-bottom:16px;}
+.form-label{font-size:10px;font-weight:700;color:var(--text2);letter-spacing:1px;margin-bottom:7px;display:block;}
+.form-input{width:100%;padding:10px 13px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .2s;}
+.form-input:focus{border-color:var(--accent);}
+.radio-group{display:flex;gap:7px;flex-wrap:wrap;}
+.radio-btn{padding:6px 13px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);
+  color:var(--text2);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.radio-btn.selected{border-color:var(--accent);color:var(--accent);background:rgba(124,92,252,.15);}
+.color-btn{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;}
+.color-btn.selected{border-color:#fff;box-shadow:0 0 10px currentColor;}
+.upload-area{width:100%;padding:20px;border:2px dashed var(--border);border-radius:12px;
+  display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;
+  color:var(--text2);text-align:center;font-size:13px;}
+.upload-area:active{border-color:var(--accent);}
+.upload-icon{font-size:28px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;}
+.btn-cancel{padding:10px 18px;border-radius:8px;border:1px solid var(--border);background:transparent;
+  color:var(--text2);font-family:inherit;font-size:13px;cursor:pointer;}
+.btn-save{padding:10px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;
+  font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.btn-save:disabled{opacity:.5;cursor:not-allowed;}
+
+/* DECK MODAL FILTERS */
+.deck-modal-filters{background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;margin-bottom:10px;}
+.dmf-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.dmf-row+.dmf-row{margin-top:7px;}
+.dmf-label{font-size:10px;font-weight:700;color:var(--text2);width:28px;flex-shrink:0;}
+.dmf-chip{padding:3px 9px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);
+  color:var(--text2);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.dmf-chip.on{border-color:var(--accent);color:var(--accent);background:rgba(124,92,252,.18);}
+.dmf-col{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0;}
+.dmf-col.on{border-color:#fff;box-shadow:0 0 7px currentColor;}
+
+/* SELECT GRID */
+.select-count-bar{font-size:11px;color:var(--text2);margin-bottom:8px;}
+.select-count-bar span{color:var(--accent);font-weight:700;font-family:'Orbitron',monospace;}
+.select-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));
+  gap:8px;max-height:260px;overflow-y:auto;padding:2px;}
+.sel-item{position:relative;cursor:pointer;}
+.sel-thumb{width:100%;aspect-ratio:5/7;border-radius:7px;overflow:hidden;border:2px solid var(--border);
+  background:var(--bg3);display:flex;align-items:center;justify-content:center;
+  color:var(--text2);font-size:20px;transition:border-color .15s;position:relative;cursor:pointer;}
+.sel-thumb img{width:100%;height:100%;object-fit:cover;}
+.sel-item.picked .sel-thumb{border-color:var(--accent3);box-shadow:0 0 8px rgba(92,252,154,.3);}
+.sel-badge{display:none;position:absolute;top:3px;right:3px;min-width:20px;height:20px;
+  border-radius:10px;background:var(--accent3);color:#000;font-size:10px;font-weight:900;
+  align-items:center;justify-content:center;padding:0 3px;pointer-events:none;}
+.sel-item.picked .sel-badge{display:flex;}
+.sel-name{font-size:9px;text-align:center;color:var(--text2);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* COUNT POPUP */
+.cnt-popup{display:none;position:fixed;z-index:600;width:148px;
+  background:var(--bg2);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;
+  box-shadow:0 8px 28px rgba(0,0,0,.8);}
+.cnt-popup.open{display:block;animation:popIn .15s ease;}
+@keyframes popIn{from{opacity:0;transform:scale(.9);}to{opacity:1;transform:scale(1);}}
+.cpp-label{font-size:10px;color:var(--text2);text-align:center;margin-bottom:8px;}
+.cpp-row{display:flex;align-items:center;justify-content:center;gap:8px;}
+.cpp-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg3);
+  color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.cpp-val{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:var(--accent3);min-width:30px;text-align:center;}
+.cpp-ok{margin-top:8px;width:100%;padding:7px 0;background:var(--accent);color:#fff;border:none;
+  border-radius:7px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.cpp-rm{margin-top:5px;width:100%;padding:6px 0;background:transparent;color:var(--red);
+  border:1px solid rgba(252,92,92,.35);border-radius:7px;font-family:inherit;font-size:12px;cursor:pointer;}
+
+/* DECK DETAIL */
+.deck-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));
+  gap:8px;max-height:360px;overflow-y:auto;padding:2px;}
+.dd-thumb{width:100%;aspect-ratio:5/7;border-radius:6px;overflow:hidden;border:1px solid var(--border);
+  background:var(--bg3);display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:18px;}
+.dd-thumb img{width:100%;height:100%;object-fit:cover;}
+.dd-name{font-size:9px;text-align:center;color:var(--text2);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* CONFIRM */
+.confirm-modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px 16px 0 0;
+  padding:24px 20px 32px;width:100%;max-width:480px;text-align:center;animation:sheetUp .2s ease;}
+.confirm-modal::before{content:'';display:block;width:40px;height:4px;background:var(--border);
+  border-radius:2px;margin:0 auto 16px;}
+.confirm-modal h3{font-size:15px;font-weight:700;margin-bottom:8px;}
+.confirm-modal p{font-size:12px;color:var(--text2);margin-bottom:22px;}
+.confirm-actions{display:flex;gap:10px;justify-content:center;}
+.btn-danger{padding:10px 22px;border-radius:8px;border:none;background:var(--red);color:#fff;
+  font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+
+/* LOADING */
+.loading-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.6);
+  align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+.loading-overlay.show{display:flex;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:13px;color:var(--text2);}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 18px;font-size:12px;color:var(--text);z-index:700;
+  opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
+.toast.show{opacity:1;}
+.toast.success{border-color:var(--accent3);color:var(--accent3);}
+.toast.error{border-color:var(--red);color:var(--red);}
+
+/* MISC */
+.level-slider{width:100%;accent-color:var(--accent);}
+.level-val{font-family:'Orbitron',monospace;color:var(--accent);font-size:14px;font-weight:700;}
+.empty-state{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 16px;color:var(--text2);text-align:center;}
+.empty-state .icon{font-size:44px;opacity:.4;}
+.empty-state p{font-size:13px;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* SETUP SCREEN */
+#setupScreen{position:fixed;inset:0;z-index:800;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;padding:20px;}
+.setup-box{background:var(--bg2);border:1px solid var(--border);border-radius:20px;
+  padding:28px 24px;width:100%;max-width:440px;}
+.setup-box h1{font-family:'Orbitron',monospace;font-size:20px;color:var(--accent);
+  margin-bottom:6px;letter-spacing:2px;}
+.setup-box p{font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.6;}
+.setup-input{width:100%;padding:11px 13px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:monospace;font-size:12px;outline:none;
+  margin-bottom:10px;transition:border-color .2s;}
+.setup-input:focus{border-color:var(--accent);}
+.setup-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;
+  border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px;}
+.setup-hint{font-size:11px;color:var(--text2);margin-top:12px;line-height:1.6;}
+.setup-hint a{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setupScreen">
+  <div class="setup-box">
+    <h1>CARD<span style="color:var(--accent2)">VAULT</span></h1>
+    <p>Supabaseの接続情報を入力してください。<br>一度入力するとブラウザに保存されます。</p>
+    <input class="setup-input" id="setupUrl" placeholder="Project URL (https://xxx.supabase.co)">
+    <input class="setup-input" id="setupKey" placeholder="anon public key (eyJhbGc...)">
+    <button class="setup-btn" onclick="connectSupabase()">接続する</button>
+    <div class="setup-hint">
+      ※ セットアップ手順は同梱の <strong>setup-guide.md</strong> を参照してください。<br>
+      Supabase → Project Settings → API から取得できます。
+    </div>
+  </div>
+</div>
+
+<div id="app">
+<nav>
+  <div class="logo">CARD<span style="color:var(--accent2)">VAULT</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('decks',this)">デッキリスト</button>
+    <button class="nav-tab" onclick="showPage('cards',this)">カードリスト</button>
+  </div>
+  <button class="nav-btn" onclick="openAddModal()">＋ 追加</button>
+  <div class="sync-indicator" id="syncDot" title="同期状態"></div>
+</nav>
+
+<!-- CARD PAGE -->
+<div id="page-cards" class="page">
+  <div class="page-header">
+    <div class="page-title">カード<span>リスト</span></div>
+    <input class="search-input" placeholder="🔍 名前で検索..." oninput="filterCards(this.value)">
+  </div>
+  <div class="filter-bar">
+    <div class="filter-chip active" id="cc-all"   onclick="setCF('color','all')">ALL</div>
+    <div class="filter-chip" style="color:var(--red)"    id="cc-赤" onclick="setCF('color','赤')">● 赤</div>
+    <div class="filter-chip" style="color:var(--blue)"   id="cc-青" onclick="setCF('color','青')">● 青</div>
+    <div class="filter-chip" style="color:var(--green)"  id="cc-緑" onclick="setCF('color','緑')">● 緑</div>
+    <div class="filter-chip" style="color:var(--yellow)" id="cc-黄" onclick="setCF('color','黄')">● 黄</div>
+    <div class="filter-chip" style="color:var(--purple)" id="cc-紫" onclick="setCF('color','紫')">● 紫</div>
+    <div class="filter-sep"></div>
+    <div class="filter-chip active" id="ct-all"    onclick="setCF('type','all')">ALL</div>
+    <div class="filter-chip" id="ct-イジン"  onclick="setCF('type','イジン')">⚔️ イジン</div>
+    <div class="filter-chip" id="ct-マホウ"  onclick="setCF('type','マホウ')">✨ マホウ</div>
+    <div class="filter-chip" id="ct-ハイケイ" onclick="setCF('type','ハイケイ')">🌄 ハイケイ</div>
+    <div class="filter-chip" id="ct-マリョク" onclick="setCF('type','マリョク')">🔮 マリョク</div>
+  </div>
+  <div class="card-grid" id="cardGrid"></div>
+</div>
+
+<!-- DECK PAGE -->
+<div id="page-decks" class="page active">
+  <div class="page-header">
+    <div class="page-title">デッキ<span>リスト</span></div>
+  </div>
+  <div class="deck-grid" id="deckGrid"></div>
+</div>
+</div><!-- /app -->
+
+<!-- MODAL: カード追加 -->
+<div class="modal-overlay" id="cardModal">
+  <div class="modal">
+    <h2 id="cardModalTitle">NEW CARD</h2>
+    <div class="form-group">
+      <label class="form-label">カード名</label>
+      <input class="form-input" id="cardName" placeholder="カード名を入力...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">画像</label>
+      <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon" id="uploadIcon">🖼</div>
+        <div id="uploadText">タップして画像をアップロード</div>
+        <div style="font-size:11px;opacity:.6">JPG / PNG / WebP</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileSelect(this)">
+      <img id="imagePreview" style="display:none;width:100%;max-height:180px;object-fit:contain;margin-top:10px;border-radius:8px;border:1px solid var(--border)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">色</label>
+      <div class="radio-group" id="colorGroup">
+        <button class="color-btn" style="background:var(--red)"    data-val="赤" onclick="selectColor(this)"></button>
+        <button class="color-btn" style="background:var(--blue)"   data-val="青" onclick="selectColor(this)"></button>
+        <button class="color-btn" style="background:var(--green)"  data-val="緑" onclick="selectColor(this)"></button>
+        <button class="color-btn" style="background:var(--yellow)" data-val="黄" onclick="selectColor(this)"></button>
+        <button class="color-btn" style="background:var(--purple)" data-val="紫" onclick="selectColor(this)"></button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">種別</label>
+      <div class="radio-group" id="typeGroup">
+        <button class="radio-btn" data-val="イジン"  onclick="selectType(this)">⚔️ イジン</button>
+        <button class="radio-btn" data-val="マホウ"  onclick="selectType(this)">✨ マホウ</button>
+        <button class="radio-btn" data-val="ハイケイ" onclick="selectType(this)">🌄 ハイケイ</button>
+        <button class="radio-btn" data-val="マリョク" onclick="selectType(this)">🔮 マリョク</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">レベル &nbsp;<span class="level-val" id="levelVal">0</span></label>
+      <input type="range" class="level-slider" id="levelSlider" min="0" max="17" value="0"
+        oninput="document.getElementById('levelVal').textContent=this.value">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('cardModal')">キャンセル</button>
+      <button class="btn-save" id="saveCardBtn" onclick="saveCard()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: デッキ -->
+<div class="modal-overlay" id="deckModal">
+  <div class="modal">
+    <h2 id="deckModalTitle">NEW DECK</h2>
+    <div class="form-group">
+      <label class="form-label">デッキ名</label>
+      <input class="form-input" id="deckName" placeholder="デッキ名を入力...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">カードを選択（最大50枚）</label>
+      <div class="deck-modal-filters">
+        <div class="dmf-row">
+          <span class="dmf-label">色</span>
+          <div class="dmf-chip on" data-fc="all" onclick="setDF('color','all',this)">ALL</div>
+          <div class="dmf-col" style="background:var(--red)"    data-fc="赤" onclick="setDF('color','赤',this)"></div>
+          <div class="dmf-col" style="background:var(--blue)"   data-fc="青" onclick="setDF('color','青',this)"></div>
+          <div class="dmf-col" style="background:var(--green)"  data-fc="緑" onclick="setDF('color','緑',this)"></div>
+          <div class="dmf-col" style="background:var(--yellow)" data-fc="黄" onclick="setDF('color','黄',this)"></div>
+          <div class="dmf-col" style="background:var(--purple)" data-fc="紫" onclick="setDF('color','紫',this)"></div>
+        </div>
+        <div class="dmf-row">
+          <span class="dmf-label">種別</span>
+          <div class="dmf-chip on" data-ft="all"    onclick="setDF('type','all',this)">ALL</div>
+          <div class="dmf-chip" data-ft="イジン"  onclick="setDF('type','イジン',this)">⚔️</div>
+          <div class="dmf-chip" data-ft="マホウ"  onclick="setDF('type','マホウ',this)">✨</div>
+          <div class="dmf-chip" data-ft="ハイケイ" onclick="setDF('type','ハイケイ',this)">🌄</div>
+          <div class="dmf-chip" data-ft="マリョク" onclick="setDF('type','マリョク',this)">🔮</div>
+        </div>
+      </div>
+      <div class="select-count-bar">合計: <span id="selectCount">0</span> / 50枚</div>
+      <div class="select-grid" id="selectGrid"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('deckModal')">キャンセル</button>
+      <button class="btn-save" id="saveDeckBtn" onclick="saveDeck()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: デッキ詳細 -->
+<div class="modal-overlay" id="deckDetailModal">
+  <div class="modal">
+    <h2 id="deckDetailTitle"></h2>
+    <div class="select-count-bar" id="deckDetailCount"></div>
+    <div class="deck-detail-grid" id="deckDetailGrid"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('deckDetailModal')">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 確認 -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="confirm-modal">
+    <h3 id="confirmTitle"></h3>
+    <p id="confirmMsg"></p>
+    <div class="confirm-actions">
+      <button class="btn-cancel" onclick="closeModal('confirmModal')">キャンセル</button>
+      <button class="btn-danger" id="confirmOkBtn">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">読み込み中...</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+//  Supabase 接続設定
+// ═══════════════════════════════════════
+const SUPABASE_URL = localStorage.getItem('cv_url') || '';
+const SUPABASE_KEY = localStorage.getItem('cv_key') || '';
+
+let sbClient = null;
+
+function connectSupabase() {
+  const url = document.getElementById('setupUrl').value.trim();
+  const key = document.getElementById('setupKey').value.trim();
+  if (!url || !key) { showToast('URLとKeyを入力してください', 'error'); return; }
+  if (!url.startsWith('https://')) { showToast('URLはhttps://で始まる必要があります', 'error'); return; }
+  localStorage.setItem('cv_url', url);
+  localStorage.setItem('cv_key', key);
+  location.reload();
+}
+
+async function initSupabase() {
+  const url = localStorage.getItem('cv_url');
+  const key = localStorage.getItem('cv_key');
+  if (!url || !key) { document.getElementById('setupScreen').style.display = 'flex'; return false; }
+  try {
+    sbClient = window.supabase.createClient(url, key);
+    // 接続テスト
+    const { error } = await sbClient.from('cards').select('id').limit(1);
+    if (error) throw error;
+    document.getElementById('setupScreen').style.display = 'none';
+    return true;
+  } catch(e) {
+    document.getElementById('setupScreen').style.display = 'flex';
+    showToast('接続に失敗しました。URLとKeyを確認してください', 'error');
+    localStorage.removeItem('cv_url'); localStorage.removeItem('cv_key');
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════
+//  State
+// ═══════════════════════════════════════
+let cards = [], decks = [];
+let currentPage = 'cards';
+let cardCF = 'all', cardTF = 'all', searchQ = '';
+let selColor = null, selType = null, selFile = null, selExistingImg = null, editingCardId = null;
+let pickMap = {}, editingDeckId = null;
+let dfType = 'all';
+
+const CM = {赤:'var(--red)',青:'var(--blue)',緑:'var(--green)',黄:'var(--yellow)',紫:'var(--purple)'};
+const TI = {イジン:'⚔️',マホウ:'✨',ハイケイ:'🌄',マリョク:'🔮'};
+const tot = () => Object.values(pickMap).reduce((a,b)=>a+b, 0);
+const esc = s => s.replace(/'/g, "\\'");
+
+// ═══════════════════════════════════════
+//  UI Helpers
+// ═══════════════════════════════════════
+function showLoading(text='保存中...') {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function setSyncing(state) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-indicator' + (state==='syncing'?' syncing':state==='error'?' error':'');
+}
+
+// ═══════════════════════════════════════
+//  Data — Supabase CRUD
+// ═══════════════════════════════════════
+async function loadAll() {
+  setSyncing('syncing');
+  showLoading('データを読み込み中...');
+  try {
+    const [{ data: cData, error: cErr }, { data: dData, error: dErr }] = await Promise.all([
+      sbClient.from('cards').select('*').order('created_at', { ascending: true }),
+      sbClient.from('decks').select('*').order('created_at', { ascending: true }),
+    ]);
+    if (cErr) throw cErr;
+    if (dErr) throw dErr;
+    cards = cData.map(r => ({ id: r.id, name: r.name, color: r.color, type: r.type, level: r.level, img: r.image_url }));
+    decks = dData.map(r => ({ id: r.id, name: r.name, cardIds: r.card_ids || [] }));
+    renderCards(); renderDecks();
+    setSyncing('ok');
+  } catch(e) {
+    setSyncing('error');
+    showToast('読み込みに失敗しました', 'error');
+  } finally { hideLoading(); }
+}
+
+async function dbInsertCard(name, color, type, level, imageUrl) {
+  const { data, error } = await sbClient.from('cards').insert({ name, color, type, level, image_url: imageUrl }).select().single();
+  if (error) throw error;
+  return data;
+}
+async function dbDeleteCard(id) {
+  // Storage画像も削除
+  const card = cards.find(c => c.id === id);
+  if (card?.img) {
+    const path = card.img.split('/card-images/')[1];
+    if (path) await sbClient.storage.from('card-images').remove([path]);
+  }
+  const { error } = await sbClient.from('cards').delete().eq('id', id);
+  if (error) throw error;
+}
+async function dbInsertDeck(name, cardIds) {
+  const { data, error } = await sbClient.from('decks').insert({ name, card_ids: cardIds }).select().single();
+  if (error) throw error;
+  return data;
+}
+async function dbUpdateDeck(id, name, cardIds) {
+  const { error } = await sbClient.from('decks').update({ name, card_ids: cardIds }).eq('id', id);
+  if (error) throw error;
+}
+async function dbDeleteDeck(id) {
+  const { error } = await sbClient.from('decks').delete().eq('id', id);
+  if (error) throw error;
+}
+
+async function uploadImage(file) {
+  const ext = file.name.split('.').pop();
+  const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await sbClient.storage.from('card-images').upload(path, file);
+  if (error) throw error;
+  const { data } = sbClient.storage.from('card-images').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// ═══════════════════════════════════════
+//  Nav
+// ═══════════════════════════════════════
+function showPage(page, tab) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  tab.classList.add('active');
+  currentPage = page;
+}
+function openAddModal() { currentPage==='cards' ? openCardModal() : openDeckModal(null); }
+
+// ═══════════════════════════════════════
+//  Card Modal
+// ═══════════════════════════════════════
+function openCardModal() {
+  editingCardId=null; selColor=null; selType=null; selFile=null; selExistingImg=null;
+  document.getElementById('cardModalTitle').textContent='NEW CARD';
+  document.getElementById('cardName').value='';
+  document.getElementById('levelSlider').value=0;
+  document.getElementById('levelVal').textContent='0';
+  document.getElementById('imagePreview').style.display='none';
+  document.getElementById('fileInput').value='';
+  document.getElementById('uploadText').textContent='タップして画像をアップロード';
+  document.querySelectorAll('#colorGroup .color-btn').forEach(b=>b.classList.remove('selected'));
+  document.querySelectorAll('#typeGroup .radio-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('cardModal').classList.add('open');
+}
+
+function openEditCardModal(id) {
+  const c = cards.find(x=>x.id===id);
+  if (!c) return;
+  editingCardId=id; selColor=c.color; selType=c.type; selFile=null; selExistingImg=c.img||null;
+  document.getElementById('cardModalTitle').textContent='EDIT CARD';
+  document.getElementById('cardName').value=c.name;
+  document.getElementById('levelSlider').value=c.level;
+  document.getElementById('levelVal').textContent=c.level;
+  // 画像プレビュー
+  const prev=document.getElementById('imagePreview');
+  if (c.img) { prev.src=c.img; prev.style.display='block'; document.getElementById('uploadText').textContent='登録済み画像'; }
+  else { prev.style.display='none'; document.getElementById('uploadText').textContent='タップして画像をアップロード'; }
+  document.getElementById('fileInput').value='';
+  // 色
+  document.querySelectorAll('#colorGroup .color-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.val===c.color);
+  });
+  // 種別
+  document.querySelectorAll('#typeGroup .radio-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.val===c.type);
+  });
+  document.getElementById('cardModal').classList.add('open');
+}
+function selectColor(btn) {
+  document.querySelectorAll('#colorGroup .color-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected'); selColor=btn.dataset.val;
+}
+function selectType(btn) {
+  document.querySelectorAll('#typeGroup .radio-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected'); selType=btn.dataset.val;
+}
+function handleFileSelect(input) {
+  if (!input.files[0]) return;
+  selFile = input.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    const prev = document.getElementById('imagePreview');
+    prev.src = e.target.result; prev.style.display='block';
+    document.getElementById('uploadText').textContent = selFile.name;
+  };
+  reader.readAsDataURL(selFile);
+}
+
+async function saveCard() {
+  const name = document.getElementById('cardName').value.trim();
+  if (!name) { showToast('カード名を入力してください', 'error'); return; }
+  const btn = document.getElementById('saveCardBtn');
+  btn.disabled = true;
+  showLoading('カードを保存中...');
+  try {
+    const level = parseInt(document.getElementById('levelSlider').value);
+    if (editingCardId !== null) {
+      // 編集モード：並び順を変えずに更新
+      let imageUrl = selExistingImg; // 既存画像を維持
+      if (selFile) imageUrl = await uploadImage(selFile); // 新しい画像があれば差し替え
+      const { error } = await sbClient.from('cards').update({
+        name, color: selColor, type: selType, level, image_url: imageUrl
+      }).eq('id', editingCardId);
+      if (error) throw error;
+      const c = cards.find(x=>x.id===editingCardId);
+      c.name=name; c.color=selColor; c.type=selType; c.level=level; c.img=imageUrl;
+      closeModal('cardModal');
+      renderCards();
+      showToast('カードを更新しました ✓');
+    } else {
+      // 新規追加
+      let imageUrl = null;
+      if (selFile) imageUrl = await uploadImage(selFile);
+      const row = await dbInsertCard(name, selColor, selType, level, imageUrl);
+      cards.push({ id: row.id, name: row.name, color: row.color, type: row.type, level: row.level, img: row.image_url });
+      closeModal('cardModal');
+      renderCards();
+      showToast('カードを追加しました ✓');
+    }
+  } catch(e) {
+    showToast('保存に失敗しました: '+e.message, 'error');
+  } finally { btn.disabled=false; hideLoading(); }
+}
+
+// ═══════════════════════════════════════
+//  Card Delete
+// ═══════════════════════════════════════
+function confirmDeleteCard(id, name) {
+  showConfirm(`「${name}」を削除しますか？`, 'デッキからも取り除かれます。', async () => {
+    showLoading('削除中...');
+    try {
+      await dbDeleteCard(id);
+      cards = cards.filter(c=>c.id!==id);
+      decks.forEach(d => { d.cardIds = d.cardIds.filter(x=>x!==id); });
+      // デッキのcard_ids更新
+      await Promise.all(decks.map(d => sbClient.from('decks').update({ card_ids: d.cardIds }).eq('id', d.id)));
+      renderCards(); renderDecks();
+      showToast('カードを削除しました');
+    } catch(e) { showToast('削除に失敗しました', 'error'); }
+    finally { hideLoading(); }
+  });
+}
+
+// ═══════════════════════════════════════
+//  Card Filters
+// ═══════════════════════════════════════
+function setCF(kind, val) {
+  if (kind==='color') {
+    cardCF = val;
+    ['all','赤','青','緑','黄','紫'].forEach(v=>{const e=document.getElementById('cc-'+v);if(e)e.classList.remove('active');});
+    document.getElementById('cc-'+val)?.classList.add('active');
+  } else {
+    cardTF = val;
+    ['all','イジン','マホウ','ハイケイ','マリョク'].forEach(v=>{const e=document.getElementById('ct-'+v);if(e)e.classList.remove('active');});
+    document.getElementById('ct-'+val)?.classList.add('active');
+  }
+  renderCards();
+}
+function filterCards(q) { searchQ=q; renderCards(); }
+
+// ═══════════════════════════════════════
+//  Deck Modal
+// ═══════════════════════════════════════
+// dfColors: Set of selected colors (max 2), dfType: single
+let dfColors = new Set(['all']);
+
+function setDF(kind, val, el) {
+  if (kind==='color') {
+    if (val==='all') {
+      dfColors = new Set(['all']);
+      document.querySelectorAll('[data-fc]').forEach(e=>e.classList.remove('on'));
+      el.classList.add('on');
+    } else {
+      dfColors.delete('all');
+      document.querySelector('[data-fc="all"]').classList.remove('on');
+      if (el.classList.contains('on')) {
+        // 選択解除
+        el.classList.remove('on');
+        dfColors.delete(val);
+        if (dfColors.size===0) {
+          dfColors.add('all');
+          document.querySelector('[data-fc="all"]').classList.add('on');
+        }
+      } else {
+        if (dfColors.size >= 2) { showToast('色は2色まで選択できます','error'); return; }
+        el.classList.add('on');
+        dfColors.add(val);
+      }
+    }
+  } else {
+    dfType=val;
+    document.querySelectorAll('[data-ft]').forEach(e=>e.classList.remove('on'));
+    el.classList.add('on');
+  }
+  renderSelectGrid();
+}
+
+function openDeckModal(deckId) {
+  if (cards.length===0) { showToast('先にカードを追加してください', 'error'); return; }
+  editingDeckId=deckId; pickMap={};
+  dfColors=new Set(['all']); dfType='all';
+  document.querySelectorAll('[data-fc]').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('[data-ft]').forEach(e=>e.classList.remove('on'));
+  document.querySelector('[data-fc="all"]').classList.add('on');
+  document.querySelector('[data-ft="all"]').classList.add('on');
+  if (deckId!==null) {
+    const d = decks.find(x=>x.id===deckId);
+    document.getElementById('deckName').value=d.name;
+    document.getElementById('deckModalTitle').textContent='EDIT DECK';
+    d.cardIds.forEach(id=>{ pickMap[id]=(pickMap[id]||0)+1; });
+  } else {
+    document.getElementById('deckName').value='';
+    document.getElementById('deckModalTitle').textContent='NEW DECK';
+  }
+  closePopup(); renderSelectGrid();
+  document.getElementById('deckModal').classList.add('open');
+}
+
+function renderSelectGrid() {
+  const grid = document.getElementById('selectGrid');
+  const typeOrder = {イジン:0, マホウ:1, ハイケイ:2, マリョク:3};
+  const filtered = cards
+    .filter(c=>(dfColors.has('all')||dfColors.has(c.color))&&(dfType==='all'||c.type===dfType))
+    .sort((a,b)=>{
+      const to = (typeOrder[a.type]??99) - (typeOrder[b.type]??99);
+      if (to!==0) return to;
+      if (b.level !== a.level) return b.level - a.level;
+      return 0; // created_at順はDBから取得順をそのまま維持
+    });
+  if (!filtered.length) {
+    grid.innerHTML=`<div style="grid-column:1/-1;padding:16px;text-align:center;color:var(--text2);font-size:12px;">該当するカードがありません</div>`;
+    updCount(); return;
+  }
+  grid.innerHTML = filtered.map(c => {
+    const cnt=pickMap[c.id]||0; const picked=cnt>0;
+    return `<div class="sel-item${picked?' picked':''}" id="sel-${c.id}">
+      <div class="sel-thumb" id="thumb-${c.id}" onclick="onSelClick(event,'${c.id}')">
+        ${c.img?`<img src="${c.img}">`:`<div>${TI[c.type]||'🃏'}</div>`}
+        <div class="card-color-bar" style="background:${CM[c.color]||'#444'}"></div>
+        <div class="sel-badge" id="badge-${c.id}">${cnt}</div>
+      </div>
+      <div class="cnt-popup" id="popup-${c.id}">
+        <div class="cpp-label">枚数を選択</div>
+        <div class="cpp-row">
+          <button class="cpp-btn" onclick="chgCnt('${c.id}',-1)">−</button>
+          <div class="cpp-val" id="pv-${c.id}">${cnt||1}</div>
+          <button class="cpp-btn" onclick="chgCnt('${c.id}',+1)">＋</button>
+        </div>
+        <button class="cpp-ok" onclick="applyC('${c.id}')">決定</button>
+        ${picked?`<button class="cpp-rm" onclick="rmCard('${c.id}')">外す</button>`:''}
+      </div>
+      <div class="sel-name">${c.name}</div>
+    </div>`;
+  }).join('');
+  updCount();
+}
+function updCount() { document.getElementById('selectCount').textContent=tot(); }
+
+function positionPopup(popup, thumbEl) {
+  const popW=148, popH=popup.scrollHeight||160;
+  const rect=thumbEl.getBoundingClientRect();
+  const vw=window.innerWidth, vh=window.innerHeight;
+  let left=rect.left+rect.width/2-popW/2;
+  left=Math.max(8,Math.min(left,vw-popW-8));
+  let top = (rect.top-popH-8>=8) ? rect.top-popH-8 : rect.bottom+8;
+  top=Math.max(8,Math.min(top,vh-popH-8));
+  popup.style.left=left+'px'; popup.style.top=top+'px';
+}
+
+function onSelClick(e, id) {
+  e.stopPropagation();
+  const popup=document.getElementById('popup-'+id);
+  const thumb=document.getElementById('thumb-'+id);
+  const wasOpen=popup.classList.contains('open');
+  closePopup();
+  if (!wasOpen) {
+    document.getElementById('pv-'+id).textContent=Math.max(1,pickMap[id]||1);
+    popup.classList.add('open');
+    positionPopup(popup, thumb);
+  }
+}
+function closePopup() { document.querySelectorAll('.cnt-popup.open').forEach(p=>p.classList.remove('open')); }
+
+function chgCnt(id, d) {
+  const el=document.getElementById('pv-'+id);
+  const cur=pickMap[id]||0;
+  let v=parseInt(el.textContent)+d;
+  if (d>0&&tot()-cur+v>50) { showToast('合計50枚を超えます','error'); return; }
+  el.textContent=Math.max(1,v);
+}
+function applyC(id) {
+  const v=parseInt(document.getElementById('pv-'+id).textContent);
+  const cur=pickMap[id]||0;
+  if (tot()-cur+v>50) { showToast('合計50枚を超えます','error'); return; }
+  pickMap[id]=v; closePopup(); renderSelectGrid();
+}
+function rmCard(id) { delete pickMap[id]; closePopup(); renderSelectGrid(); }
+
+async function saveDeck() {
+  const name=document.getElementById('deckName').value.trim();
+  if (!name) { showToast('デッキ名を入力してください','error'); return; }
+  const cardIds=[];
+  Object.entries(pickMap).forEach(([id,cnt])=>{ for(let i=0;i<cnt;i++) cardIds.push(id); });
+  const btn=document.getElementById('saveDeckBtn');
+  btn.disabled=true;
+  showLoading('デッキを保存中...');
+  try {
+    if (editingDeckId!==null) {
+      await dbUpdateDeck(editingDeckId, name, cardIds);
+      const d=decks.find(x=>x.id===editingDeckId);
+      d.name=name; d.cardIds=cardIds;
+      showToast('デッキを更新しました ✓');
+    } else {
+      const row=await dbInsertDeck(name, cardIds);
+      decks.push({ id:row.id, name:row.name, cardIds:row.card_ids||[] });
+      showToast('デッキを作成しました ✓');
+    }
+    closeModal('deckModal'); renderDecks();
+  } catch(e) { showToast('保存に失敗しました: '+e.message,'error'); }
+  finally { btn.disabled=false; hideLoading(); }
+}
+
+// ═══════════════════════════════════════
+//  Deck Delete
+// ═══════════════════════════════════════
+function confirmDeleteDeck(id, name) {
+  showConfirm(`「${name}」を削除しますか？`, 'カードは残ります。', async () => {
+    showLoading('削除中...');
+    try {
+      await dbDeleteDeck(id);
+      decks=decks.filter(d=>d.id!==id);
+      renderDecks();
+      showToast('デッキを削除しました');
+    } catch(e) { showToast('削除に失敗しました','error'); }
+    finally { hideLoading(); }
+  });
+}
+
+// ═══════════════════════════════════════
+//  Deck Detail
+// ═══════════════════════════════════════
+function openDeckDetail(id) {
+  const d=decks.find(x=>x.id===id);
+  document.getElementById('deckDetailTitle').textContent=d.name;
+  const dc=d.cardIds.map(cid=>cards.find(c=>c.id===cid)).filter(Boolean);
+  document.getElementById('deckDetailCount').innerHTML=`<span>${dc.length}</span> 枚`;
+  document.getElementById('deckDetailGrid').innerHTML=dc.map(c=>`
+    <div>
+      <div class="dd-thumb">${c.img?`<img src="${c.img}">`:`<div>${TI[c.type]||'🃏'}</div>`}</div>
+      <div class="dd-name">${c.name}</div>
+    </div>`).join('');
+  document.getElementById('deckDetailModal').classList.add('open');
+}
+
+// ═══════════════════════════════════════
+//  Confirm Dialog
+// ═══════════════════════════════════════
+function showConfirm(title, msg, onOk) {
+  document.getElementById('confirmTitle').textContent=title;
+  document.getElementById('confirmMsg').textContent=msg;
+  document.getElementById('confirmOkBtn').onclick=()=>{ onOk(); closeModal('confirmModal'); };
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(o=>{
+  o.addEventListener('click',e=>{ if(e.target===o){ o.classList.remove('open'); closePopup(); } });
+});
+document.getElementById('deckModal').addEventListener('click',e=>{
+  if (!e.target.closest('.sel-item')) closePopup();
+});
+
+// ═══════════════════════════════════════
+//  Render
+// ═══════════════════════════════════════
+function renderCards() {
+  const grid=document.getElementById('cardGrid');
+  const f=cards.filter(c=>(cardCF==='all'||c.color===cardCF)&&(cardTF==='all'||c.type===cardTF)&&(!searchQ||c.name.includes(searchQ)));
+  if (!f.length) {
+    grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><div class="icon">🃏</div><p>カードがありません</p></div>`;
+    return;
+  }
+  grid.innerHTML=f.map(c=>`
+    <div class="card-item" onclick="openEditCardModal('${c.id}')">
+      <div class="card-thumb">
+        ${c.img?`<img src="${c.img}" loading="lazy">`:`<div class="no-img">${TI[c.type]||'🃏'}</div>`}
+        <div class="card-color-bar" style="background:${CM[c.color]||'#555'}"></div>
+        <div class="card-level-badge">Lv.${c.level}</div>
+        <div class="card-type-badge">${c.type||'?'}</div>
+      </div>
+      <button class="card-delete-btn" onclick="event.stopPropagation();confirmDeleteCard('${c.id}','${esc(c.name)}')">✕</button>
+      <div class="card-name">${c.name}</div>
+    </div>`).join('');
+}
+
+function renderDecks() {
+  const grid=document.getElementById('deckGrid');
+  if (!decks.length) {
+    grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><div class="icon">📦</div><p>デッキがありません</p></div>`;
+    return;
+  }
+  const sortedDecks = [...decks].sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+  grid.innerHTML=sortedDecks.map(d=>{
+    const cc=cards.find(c=>c.id===d.cardIds[0]);
+    return `<div class="deck-card">
+      <div class="deck-cover" onclick="openDeckDetail('${d.id}')">
+        ${cc?.img?`<img src="${cc.img}" loading="lazy">`:`<span>📦</span>`}
+        <div class="deck-cover-overlay"></div>
+      </div>
+      <div class="deck-info">
+        <div class="deck-name">${d.name}</div>
+        <div class="deck-count"><span>${d.cardIds.length}</span> 枚</div>
+        <div class="deck-actions">
+          <button class="deck-edit-btn" onclick="openDeckModal('${d.id}')">✏️ 編集</button>
+          <button class="deck-delete-btn" onclick="confirmDeleteDeck('${d.id}','${esc(d.name)}')">🗑 削除</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+//  Boot
+// ═══════════════════════════════════════
+(async () => {
+  const ok = await initSupabase();
+  if (ok) await loadAll();
+})();
+</script>
+</body>
+</html>
