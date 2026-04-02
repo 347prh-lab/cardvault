@@ -886,7 +886,14 @@ function confirmDeleteDeck(id, name) {
 function openDeckDetail(id) {
   const d=decks.find(x=>x.id===id);
   document.getElementById('deckDetailTitle').textContent=d.name;
-  const dc=d.cardIds.map(cid=>cards.find(c=>c.id===cid)).filter(Boolean);
+  const typeOrder={イジン:0,マホウ:1,ハイケイ:2,マリョク:3};
+  const dc=d.cardIds.map(cid=>cards.find(c=>c.id===cid)).filter(Boolean)
+    .sort((a,b)=>{
+      const to=(typeOrder[a.type]??99)-(typeOrder[b.type]??99);
+      if(to!==0) return to;
+      if(b.level!==a.level) return b.level-a.level;
+      return 0;
+    });
   document.getElementById('deckDetailCount').innerHTML=`<span>${dc.length}</span> 枚`;
   document.getElementById('deckDetailGrid').innerHTML=dc.map(c=>`
     <div>
