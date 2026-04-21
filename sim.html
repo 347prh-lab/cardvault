@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CardVault - シミュレーター</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#f5ede0;--bg2:#ede0ce;--border:#c8aa88;
+  --accent:#a07848;--accent2:#c09060;
+  --text:#3a2810;--text2:#7a5838;
+  --first:#c07030;--second:#5080b0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'Zen Kaku Gothic New',sans-serif;overflow:hidden;}
+
+/* ══ SETUP ══ */
+#setupScreen{position:fixed;inset:0;z-index:900;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;padding:20px;}
+.setup-box{background:#fff;border:1px solid var(--border);border-radius:20px;
+  padding:28px 24px;width:100%;max-width:440px;box-shadow:0 4px 20px rgba(100,70,30,.12);}
+.setup-box h1{font-family:'Orbitron',monospace;font-size:18px;color:var(--accent);
+  margin-bottom:6px;letter-spacing:2px;}
+.setup-box p{font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.7;}
+.setup-input{width:100%;padding:11px 13px;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:monospace;font-size:12px;outline:none;margin-bottom:10px;}
+.setup-input:focus{border-color:var(--accent);}
+.setup-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;
+  border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;}
+.setup-back{display:block;margin-top:14px;text-align:center;font-size:12px;color:var(--accent);text-decoration:none;}
+
+/* ══ HEADER ══ */
+header{display:flex;align-items:center;padding:0 12px;height:48px;
+  border-bottom:1px solid var(--border);background:rgba(245,237,224,.97);
+  position:fixed;top:0;left:0;right:0;z-index:100;gap:6px;}
+.logo{font-family:'Orbitron',monospace;font-size:13px;color:var(--accent);
+  letter-spacing:2px;margin-right:auto;}
+.h-btn{padding:5px 10px;border-radius:7px;border:1px solid var(--border);
+  background:transparent;color:var(--text2);font-family:inherit;font-size:10px;
+  font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;}
+.h-btn.danger{color:#c04040;border-color:rgba(192,64,64,.3);}
+
+/* ══ VS SCREEN（最初の画面） ══ */
+#vsScreen{display:none;position:fixed;top:48px;left:0;right:0;bottom:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px;gap:16px;}
+.vs-title{font-family:'Orbitron',monospace;font-size:13px;color:var(--text2);
+  letter-spacing:2px;margin-bottom:4px;}
+.vs-row{display:flex;align-items:center;justify-content:center;gap:16px;width:100%;max-width:500px;}
+.vs-slot{flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.vs-slot-label{font-size:11px;font-weight:700;letter-spacing:1px;}
+.vs-slot-label.first{color:var(--first);}
+.vs-slot-label.second{color:var(--second);}
+.vs-deck-frame{width:100%;aspect-ratio:3/4;border-radius:14px;border:2px dashed var(--border);
+  background:var(--bg2);display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;cursor:pointer;transition:all .2s;overflow:hidden;
+  position:relative;}
+.vs-deck-frame.first-frame{border-color:rgba(192,112,48,.5);}
+.vs-deck-frame.second-frame{border-color:rgba(80,128,176,.5);}
+.vs-deck-frame img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+.vs-deck-frame .frame-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:12px;}
+.vs-deck-frame .frame-name{color:#fff;font-size:11px;font-weight:700;text-align:center;
+  text-shadow:0 1px 3px rgba(0,0,0,.6);padding:0 8px;}
+.vs-select-btn{width:100%;padding:10px;border-radius:10px;border:none;
+  font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.vs-select-btn.first-btn{background:rgba(192,112,48,.15);color:var(--first);
+  border:1.5px solid rgba(192,112,48,.4);}
+.vs-select-btn.second-btn{background:rgba(80,128,176,.15);color:var(--second);
+  border:1.5px solid rgba(80,128,176,.4);}
+.vs-text{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;
+  color:var(--text2);flex-shrink:0;}
+.vs-start{width:100%;max-width:300px;padding:14px;background:var(--accent);color:#fff;border:none;
+  border-radius:12px;font-family:inherit;font-size:15px;font-weight:700;
+  cursor:pointer;box-shadow:0 4px 12px rgba(100,70,30,.25);}
+.vs-start:disabled{opacity:.3;cursor:not-allowed;}
+
+/* ══ DECK SELECT SCREEN ══ */
+#deckSelectScreen{display:none;position:fixed;top:48px;left:0;right:0;bottom:0;
+  overflow-y:auto;padding:16px 14px 100px;}
+.ds-phase{display:inline-block;padding:4px 12px;border-radius:12px;
+  font-size:11px;font-weight:700;margin-bottom:12px;}
+.ds-phase.first{background:rgba(192,112,48,.15);color:var(--first);}
+.ds-phase.second{background:rgba(80,128,176,.15);color:var(--second);}
+.ds-title{font-family:'Orbitron',monospace;font-size:15px;font-weight:700;
+  color:var(--text);letter-spacing:1px;margin-bottom:4px;}
+.ds-sub{font-size:11px;color:var(--text2);margin-bottom:16px;}
+.ds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+.ds-card{background:#fff;border:2px solid var(--border);border-radius:12px;
+  overflow:hidden;cursor:pointer;transition:all .2s;position:relative;
+  box-shadow:0 2px 8px rgba(100,70,30,.08);}
+.ds-card.selected-first{border-color:var(--first);border-width:3px;
+  box-shadow:0 0 0 4px rgba(192,112,48,.3),0 6px 20px rgba(100,70,30,.2);
+  transform:translateY(-4px) scale(1.04);}
+.ds-card.selected-second{border-color:var(--second);border-width:3px;
+  box-shadow:0 0 0 4px rgba(80,128,176,.3),0 6px 20px rgba(40,80,130,.2);
+  transform:translateY(-4px) scale(1.04);}
+.ds-card.selected-first .ds-cover::after{content:'✓ 選択中';position:absolute;bottom:8px;
+  left:50%;transform:translateX(-50%);background:var(--first);color:#fff;
+  font-size:11px;font-weight:900;padding:4px 12px;border-radius:14px;white-space:nowrap;}
+.ds-card.selected-second .ds-cover::after{content:'✓ 選択中';position:absolute;bottom:8px;
+  left:50%;transform:translateX(-50%);background:var(--second);color:#fff;
+  font-size:11px;font-weight:900;padding:4px 12px;border-radius:14px;white-space:nowrap;}
+.ds-cover{width:100%;aspect-ratio:3/4;background:var(--bg2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;color:var(--text2);overflow:hidden;position:relative;}
+.ds-cover img{width:100%;height:100%;object-fit:cover;}
+.ds-info{padding:7px 9px 9px;}
+.ds-name{font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.ds-count{font-size:10px;color:var(--text2);}
+.ds-count span{color:var(--accent);font-family:'Orbitron',monospace;font-weight:700;}
+.ds-footer{position:fixed;bottom:0;left:0;right:0;padding:10px 14px 22px;
+  background:linear-gradient(transparent,rgba(245,237,224,1) 40%);z-index:50;}
+.ds-confirm{width:100%;padding:13px;border:none;border-radius:12px;
+  font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 12px rgba(100,70,30,.2);}
+.ds-confirm.first-btn{background:var(--first);color:#fff;}
+.ds-confirm.second-btn{background:var(--second);color:#fff;}
+
+/* ══ FIELD SCREEN ══ */
+#fieldScreen{display:none;}
+
+/* マリガンバナー → ヘッダー下の細いバー */
+#mulliganBanner{position:fixed;top:48px;left:0;right:0;z-index:80;
+  background:rgba(255,248,235,.97);border-bottom:2px solid var(--accent2);
+  padding:6px 12px;display:none;align-items:center;justify-content:space-between;gap:8px;}
+#mulliganBanner.show{display:flex;}
+.mulligan-who{font-size:11px;font-weight:700;}
+.mulligan-who.first{color:var(--first);}
+.mulligan-who.second{color:var(--second);}
+.mulligan-text{font-size:10px;color:var(--text2);}
+/* マリガン中のボタン行（ヘッダー内） */
+#mulliganHeaderBtns{display:none;align-items:center;gap:6px;}
+#mulliganHeaderBtns.show{display:flex;}
+.m-btn{padding:5px 10px;border-radius:7px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;}
+.m-btn-end{border:none;background:var(--accent);color:#fff;}
+.m-btn-mulligan{border:1px solid var(--border);background:transparent;color:var(--text2);}
+.m-btn-dive{border:1px solid var(--accent2);background:rgba(192,144,96,.15);color:var(--accent);}
+
+/* フィールドラッパー */
+#fieldWrap{
+  position:fixed;top:48px;left:0;right:0;bottom:0;
+  overflow-y:auto;
+  display:flex;flex-direction:column;align-items:center;
+  padding:4px 8px 80px;gap:4px;
+}
+#fieldWrap.has-banner{top:82px;}
+
+/* 相手フィールド */
+#opponentArea{width:100%;display:flex;flex-direction:column;align-items:center;}
+.area-label{font-size:9px;font-weight:700;text-align:center;margin-bottom:2px;letter-spacing:.5px;}
+.area-label.first-label{color:var(--first);}
+.area-label.second-label{color:var(--second);}
+#opponentField{
+  position:relative;width:100%;
+  max-width:min(680px,calc(100vw - 16px));
+  height:calc((min(100vw, 696px) - 16px) / 9 * 1.4 * 8);
+  transform:rotate(180deg);
+}
+/* 中央の区切り線 */
+.field-divider{
+  width:100%;max-width:min(680px,calc(100vw - 16px));
+  height:4px;border-top:2px dashed rgba(160,120,70,.3);
+  flex-shrink:0;
+}
+/* 自分フィールド */
+#myArea{width:100%;display:flex;flex-direction:column;align-items:center;}
+#myField{
+  position:relative;width:100%;
+  max-width:min(680px,calc(100vw - 16px));
+  height:calc((min(100vw, 696px) - 16px) / 9 * 1.4 * 8);
+}
+
+/* Canvas・Grid共通 */
+.zone-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+.cell-grid{position:absolute;inset:0;width:100%;height:100%;
+  display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(8,1fr);
+  gap:2px;z-index:2;}
+.cell{border-radius:3px;border:1px dashed rgba(160,120,70,.20);
+  background:transparent;display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;cursor:pointer;}
+/* cell内の子要素はポインターイベントを親に委譲 */
+.cell > *{pointer-events:none;}
+.cell-label{font-size:clamp(5px,1.1vw,9px);font-weight:700;
+  color:rgba(80,50,20,.5);text-align:center;line-height:1.2;pointer-events:none;}
+#opponentField .cell-label{font-size:clamp(4px,.9vw,7px);}
+
+/* カード表示 */
+.card-face{width:100%;height:100%;border-radius:3px;overflow:hidden;position:relative;}
+.card-face img{width:100%;height:100%;object-fit:cover;}
+.card-face .no-img{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  font-size:clamp(8px,1.8vw,16px);background:rgba(200,170,120,.2);}
+.card-face .cbar{position:absolute;bottom:0;left:0;right:0;height:2px;}
+.card-back{width:100%;height:100%;border-radius:3px;
+  background:repeating-linear-gradient(45deg,
+    rgba(100,65,25,.55) 0px,rgba(100,65,25,.55) 2px,
+    rgba(160,115,60,.18) 2px,rgba(160,115,60,.18) 8px),
+    linear-gradient(135deg,rgba(140,95,40,.35),rgba(100,65,25,.45));
+  border:1.5px solid rgba(100,65,25,.6);
+  box-shadow:inset 0 0 0 2px rgba(200,160,100,.25);}
+.deck-pile{width:100%;height:100%;border-radius:3px;
+  background:repeating-linear-gradient(-45deg,
+    rgba(100,65,25,.55) 0px,rgba(100,65,25,.55) 2px,
+    rgba(160,115,60,.18) 2px,rgba(160,115,60,.18) 8px),
+    linear-gradient(135deg,rgba(140,95,40,.35),rgba(100,65,25,.45));
+  border:1.5px solid rgba(100,65,25,.6);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px;}
+.deck-pile-count{font-family:'Orbitron',monospace;font-size:clamp(7px,1.6vw,13px);
+  font-weight:700;color:rgba(255,248,235,.85);}
+.deck-pile-label{font-size:clamp(5px,.9vw,8px);color:rgba(255,248,235,.6);font-weight:700;}
+
+/* シミュレーション開始オーバーレイ */
+#simOverlay{position:fixed;inset:0;z-index:90;background:rgba(245,237,224,.93);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;backdrop-filter:blur(3px);}
+#simOverlay.show{display:flex;}
+.sim-overlay-title{font-family:'Orbitron',monospace;font-size:14px;color:var(--accent);
+  letter-spacing:1px;font-weight:700;}
+.sim-overlay-sub{font-size:12px;color:var(--text2);text-align:center;line-height:1.7;
+  white-space:pre-line;}
+.sim-overlay-btn{padding:14px 32px;background:var(--accent);color:#fff;border:none;
+  border-radius:14px;font-family:inherit;font-size:15px;font-weight:700;
+  cursor:pointer;box-shadow:0 4px 16px rgba(100,70,30,.3);}
+
+/* 右下コントロール（ゲーム開始後のみ） */
+#bottomControls{display:none;position:fixed;bottom:10px;right:10px;z-index:150;
+  flex-direction:row;align-items:center;gap:5px;}
+.bc-btn{padding:7px 11px;border-radius:9px;font-family:inherit;font-size:10px;
+  font-weight:700;cursor:pointer;white-space:nowrap;border:1px solid var(--border);
+  background:rgba(245,237,224,.95);color:var(--text2);}
+.bc-btn:disabled{opacity:.35;cursor:not-allowed;}
+.bc-btn.end-turn{background:var(--accent);color:#fff;border-color:var(--accent);}
+.bc-btn.switch{border-color:var(--second);background:rgba(80,128,176,.12);color:var(--second);}
+.bc-btn.switch.is-second{border-color:var(--first);background:rgba(192,112,48,.12);color:var(--first);}
+
+/* ターン演出 */
+#turnAnnounce{display:none;position:fixed;inset:0;z-index:500;
+  align-items:center;justify-content:center;pointer-events:none;}
+#turnAnnounceText{font-family:'Orbitron',monospace;font-size:28px;font-weight:900;
+  letter-spacing:3px;text-shadow:0 0 20px rgba(0,0,0,.4),0 2px 4px rgba(0,0,0,.3);
+  opacity:0;transition:opacity .4s;}
+
+/* TOAST / LOADING */
+.toast{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);
+  background:#fff;border:1px solid var(--border);border-radius:10px;
+  padding:9px 16px;font-size:12px;color:var(--text);z-index:700;
+  opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;
+  box-shadow:0 4px 12px rgba(100,70,30,.15);}
+.toast.show{opacity:1;}
+.toast.error{border-color:#c04040;color:#c04040;}
+.loading-overlay{display:none;position:fixed;inset:0;z-index:800;
+  background:rgba(245,237,224,.7);align-items:center;justify-content:center;}
+.loading-overlay.show{display:flex;}
+.spinner{width:32px;height:32px;border:3px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* 移動キャンセルバー */
+#moveCancelBar{display:none;position:fixed;bottom:44px;left:0;right:0;z-index:160;
+  padding:8px 14px;background:rgba(245,237,224,.97);border-top:1px solid var(--border);
+  text-align:center;}
+#moveCancelBar.show{display:block;}
+#moveCancelBar button{padding:9px 36px;border-radius:10px;border:1px solid var(--border);
+  background:#fff;color:var(--text2);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+
+
+/* ══ アクションシート ══ */
+#actionOverlay,#graveOverlay,#equipConfirmOverlay,#deckMoveOverlay{display:none;position:fixed;inset:0;z-index:400;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
+  align-items:flex-end;justify-content:center;}
+#actionOverlay.open,#graveOverlay.open,#equipConfirmOverlay.open,#deckMoveOverlay.open{display:flex;}
+.action-sheet{background:#fff;border-radius:20px 20px 0 0;
+  padding:16px 16px 32px;width:100%;max-width:480px;
+  animation:sheetUp .22s ease;}
+@keyframes sheetUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.action-sheet::before{content:'';display:block;width:40px;height:4px;
+  background:var(--border);border-radius:2px;margin:0 auto 14px;}
+.action-card-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.action-card-thumb{width:56px;height:78px;border-radius:8px;overflow:hidden;
+  border:1px solid var(--border);background:var(--bg2);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:22px;}
+.action-card-thumb img{width:100%;height:100%;object-fit:contain;}
+.action-card-info{flex:1;}
+.action-card-name{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;}
+.action-card-sub{font-size:10px;color:var(--text2);}
+.action-btn{width:100%;padding:12px 14px;border-radius:10px;
+  border:1px solid var(--border);background:var(--bg);
+  color:var(--text);font-family:inherit;font-size:13px;font-weight:700;
+  cursor:pointer;margin-bottom:7px;text-align:left;transition:background .15s;}
+.action-btn:active{background:var(--bg2);}
+.action-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.action-btn.danger{color:#c04040;border-color:rgba(192,64,64,.25);}
+.action-cancel{width:100%;padding:11px;border-radius:10px;border:none;
+  background:transparent;color:var(--text2);font-family:inherit;
+  font-size:13px;cursor:pointer;margin-top:2px;}
+/* 詳細モーダル */
+#detailOverlay{display:none;position:fixed;inset:0;z-index:450;
+  background:rgba(0,0,0,.7);align-items:center;justify-content:center;padding:20px;}
+#detailOverlay.open{display:flex;}
+.detail-box{background:#fff;border-radius:16px;padding:20px;
+  width:100%;max-width:300px;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.detail-img{width:160px;height:224px;border-radius:10px;overflow:hidden;
+  border:1px solid var(--border);background:var(--bg2);
+  display:flex;align-items:center;justify-content:center;font-size:48px;}
+.detail-img img{width:100%;height:100%;object-fit:contain;}
+.detail-name{font-size:15px;font-weight:700;color:var(--text);}
+.detail-meta{font-size:11px;color:var(--text2);}
+.detail-close{width:100%;padding:11px;border-radius:10px;border:none;
+  background:var(--bg2);color:var(--text2);font-family:inherit;
+  font-size:13px;font-weight:700;cursor:pointer;}
+/* ハイライト（移動先） */
+.cell.highlight{outline:2px solid var(--hl-color,#40c060);outline-offset:-2px;
+  background:var(--hl-bg,rgba(64,192,96,.18))!important;cursor:pointer;
+  animation:hlpulse .7s infinite;}
+@keyframes hlpulse{0%,100%{background:var(--hl-bg,rgba(64,192,96,.12));}50%{opacity:.8;}}
+/* ゾーン別ハイライトカラー */
+.cell.hl-haikei  {--hl-color:rgba(92,154,252,.9); --hl-bg:rgba(92,154,252,.2);}
+.cell.hl-ijin    {--hl-color:rgba(252,92,125,.9);  --hl-bg:rgba(252,92,125,.2);}
+.cell.hl-guardian{--hl-color:rgba(252,208,92,.9);  --hl-bg:rgba(252,208,92,.2);}
+.cell.hl-maryoku {--hl-color:rgba(92,252,154,.9);  --hl-bg:rgba(92,252,154,.2);}
+.cell.hl-hand    {--hl-color:rgba(200,180,140,.9);  --hl-bg:rgba(200,180,140,.2);}
+.cell.hl-grave   {--hl-color:rgba(252,92,92,.9);   --hl-bg:rgba(252,92,92,.2);}
+.cell.hl-deck    {--hl-color:rgba(160,120,72,.9);  --hl-bg:rgba(160,120,72,.2);}
+/* 選択中カード */
+.cell.selected-cell{outline:2px solid var(--accent);outline-offset:-2px;}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="setupScreen">
+  <div class="setup-box">
+    <h1>CARD<span style="color:var(--accent2)">SIM</span></h1>
+    <p>CardVaultと同じSupabaseの<br>URLとKeyを入力してください。</p>
+    <input class="setup-input" id="setupUrl" placeholder="Project URL">
+    <input class="setup-input" id="setupKey" placeholder="anon public key">
+    <button class="setup-btn" onclick="connectSupabase()">接続する</button>
+    <a class="setup-back" href="index.html">← CardVaultに戻る</a>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">CARD<span style="color:var(--accent2)">SIM</span></div>
+  <!-- 終了ボタン（ゲーム中常時表示） -->
+  <button class="m-btn m-btn-end" id="endGameBtn" style="display:none" onclick="endGame()">終了</button>
+  <!-- マリガン中のみ表示 -->
+  <div id="mulliganHeaderBtns">
+    <button class="m-btn m-btn-mulligan" onclick="doMulligan()">マリガン</button>
+    <button class="m-btn m-btn-dive" onclick="skipMulligan()">Dive to</button>
+  </div>
+</header>
+
+<!-- ターンインジケーター -->
+<div id="turnIndicator" class="first" style="display:none;">先攻ターン</div>
+
+<!-- 移動キャンセルバー -->
+<div id="moveCancelBar">
+  <button onclick="cancelMove()">✕ キャンセル</button>
+</div>
+
+<!-- マリガンバナー -->
+<div id="mulliganBanner">
+  <span class="mulligan-who" id="mulliganWho">先攻</span>
+  <span class="mulligan-text">のマリガン（何回でも可）</span>
+</div>
+
+<!-- VS SCREEN -->
+<div id="vsScreen">
+  <div class="vs-title">SELECT YOUR DECKS</div>
+  <div class="vs-row">
+    <!-- 先攻 -->
+    <div class="vs-slot">
+      <div class="vs-slot-label first">先攻</div>
+      <div class="vs-deck-frame first-frame" id="firstFrame" onclick="openDeckSelect('first')">
+        <div id="firstFrameInner" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+          <span style="font-size:32px;color:var(--text2)">📦</span>
+          <span style="font-size:11px;color:var(--text2)">未選択</span>
+        </div>
+      </div>
+      <button class="vs-select-btn first-btn" onclick="openDeckSelect('first')">デッキを選択</button>
+    </div>
+    <div class="vs-text">VS</div>
+    <!-- 後攻 -->
+    <div class="vs-slot">
+      <div class="vs-slot-label second">後攻</div>
+      <div class="vs-deck-frame second-frame" id="secondFrame" onclick="openDeckSelect('second')">
+        <div id="secondFrameInner" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+          <span style="font-size:32px;color:var(--text2)">📦</span>
+          <span style="font-size:11px;color:var(--text2)">未選択</span>
+        </div>
+      </div>
+      <button class="vs-select-btn second-btn" onclick="openDeckSelect('second')">デッキを選択</button>
+    </div>
+  </div>
+  <button class="vs-start" id="vsStartBtn" disabled onclick="startGame()">▶ スタート</button>
+</div>
+
+<!-- DECK SELECT -->
+<div id="deckSelectScreen">
+  <div id="dsPhase" class="ds-phase first">先攻デッキを選択</div>
+  <div class="ds-title" id="dsTitle">先攻デッキを選択</div>
+  <div class="ds-sub">40枚以上登録されているデッキのみ表示されます</div>
+  <div class="ds-grid" id="deckSelectGrid"></div>
+  <div class="ds-footer">
+    <button class="ds-confirm first-btn" id="dsConfirmBtn" onclick="confirmDeckSelect()">
+      この先攻デッキを選択
+    </button>
+  </div>
+</div>
+
+<!-- FIELD SCREEN -->
+<div id="fieldScreen">
+  <!-- シミュレーション開始オーバーレイ -->
+  <div id="simOverlay">
+    <div class="sim-overlay-title" id="simOverlayTitle">先攻デッキの準備</div>
+    <div class="sim-overlay-sub" id="simOverlaySub"></div>
+    <button class="sim-overlay-btn" onclick="beginSimulation()">手札を確認</button>
+  </div>
+
+  <div id="fieldWrap">
+    <div id="opponentArea">
+      <div class="area-label second-label" id="opponentLabel">後攻（相手）</div>
+      <div id="opponentField">
+        <canvas class="zone-canvas" id="opponentCanvas"></canvas>
+        <div class="cell-grid" id="opponentGrid"></div>
+      </div>
+    </div>
+    <!-- 中央区切り -->
+    <div class="field-divider"></div>
+    <div id="myArea">
+      <div class="area-label first-label" id="myLabel">先攻（自分）</div>
+      <div id="myField">
+        <canvas class="zone-canvas" id="myCanvas"></canvas>
+        <div class="cell-grid" id="myGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 右下コントロール -->
+<div id="turnBadge" style="display:none;position:fixed;bottom:46px;right:10px;z-index:140;
+  padding:4px 12px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:.5px;
+  background:rgba(192,112,48,.2);color:var(--first);border:1px solid rgba(192,112,48,.4);">先攻ターン</div>
+<div id="bottomControls">
+  <button class="bc-btn end-turn" id="endTurnBtn" onclick="endTurn()" disabled>ターン終了</button>
+  <button class="bc-btn" id="undoBtn" onclick="undoHistory()" disabled>↩ 戻る</button>
+  <button class="bc-btn" id="redoBtn" onclick="redoHistory()" disabled>進む ↪</button>
+  <button class="bc-btn" id="quickDrawBtn" onclick="quickDraw()">ドロー</button>
+  <button class="bc-btn switch" id="switchBtn" onclick="switchPerspective()">先攻視点に切替</button>
+</div>
+
+<!-- ターン演出 -->
+<div id="turnAnnounce">
+  <div id="turnAnnounceText"></div>
+</div>
+
+<!-- アクションシート（外側タップでキャンセル） -->
+<div id="actionOverlay" onclick="if(event.target===this)closeAction()">
+  <div class="action-sheet">
+    <div class="action-card-big">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div class="action-card-big-img" id="actionBigImg" style="width:calc(70vw - 32px);height:calc((70vw - 32px) * 1.4);max-width:260px;max-height:364px;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:40px;flex-shrink:0;"></div>
+        <div class="action-card-name2" id="actionCardName2"></div>
+        <div class="action-card-sub2" id="actionCardSub2"></div>
+      </div>
+    </div>
+    <div id="actionBtns"></div>
+    <button class="action-cancel" onclick="closeAction()">キャンセル</button>
+  </div>
+</div>
+<!-- 墓地一覧（フィールド風） -->
+<div id="graveOverlay" onclick="if(event.target===this)closeGraveOverlay()" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);flex-direction:column;">
+  <div style="background:#fff;border-radius:20px 20px 0 0;padding:14px 14px 28px;
+    width:100%;max-width:480px;margin:auto auto 0;max-height:80vh;overflow-y:auto;animation:sheetUp .22s ease;">
+    <div style="width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 12px;"></div>
+    <div style="font-size:13px;font-weight:700;color:var(--text);text-align:center;margin-bottom:12px;">⚰️ 墓地のカード</div>
+    <div id="graveFieldGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:6px;max-height:50vh;overflow-y:auto;"></div>
+    <button class="action-cancel" onclick="closeGraveOverlay()" style="margin-top:12px;">キャンセル</button>
+  </div>
+</div>
+<!-- 装備確認シート -->
+<div id="equipConfirmOverlay" onclick="if(event.target===this)closeEquipConfirm()">
+  <div class="action-sheet">
+    <div class="action-card-big">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div class="action-card-big-img" id="equipConfirmImg" style="width:calc(70vw - 32px);height:calc((70vw - 32px) * 1.4);max-width:260px;max-height:364px;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:40px;flex-shrink:0;"></div>
+        <div class="action-card-name2" id="equipConfirmName"></div>
+      </div>
+    </div>
+    <button class="action-btn primary" onclick="doEquipConfirm()">⚙ 装備する</button>
+    <button class="action-cancel" onclick="closeEquipConfirm()">やめる</button>
+  </div>
+</div>
+<!-- デッキ移動先選択シート -->
+<div id="deckMoveOverlay" onclick="if(event.target===this)closeDeckMove()">
+  <div class="action-sheet">
+    <div class="action-card-name2" style="margin-bottom:14px;">デッキのどこに移動しますか？</div>
+    <button class="action-btn primary" onclick="moveToDeckTop()">⬆ 一番上に移動（次のドロー）</button>
+    <button class="action-btn" onclick="moveToDeckBottom()">⬇ 一番下に移動</button>
+    <button class="action-cancel" onclick="closeDeckMove()">キャンセル</button>
+  </div>
+</div>
+<div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════
+//  Supabase
+// ════════════════
+let sbClient=null, allCards=[], allDecks=[];
+
+function connectSupabase(){
+  const url=document.getElementById('setupUrl').value.trim();
+  const key=document.getElementById('setupKey').value.trim();
+  if(!url||!key){showToast('URLとKeyを入力してください','error');return;}
+  localStorage.setItem('cv_url',url);localStorage.setItem('cv_key',key);
+  location.reload();
+}
+async function initSupabase(){
+  const url=localStorage.getItem('cv_url'),key=localStorage.getItem('cv_key');
+  if(!url||!key){document.getElementById('setupScreen').style.display='flex';return false;}
+  try{
+    sbClient=window.supabase.createClient(url,key);
+    const {error}=await sbClient.from('cards').select('id').limit(1);
+    if(error)throw error;
+    document.getElementById('setupScreen').style.display='none';
+    return true;
+  }catch(e){
+    document.getElementById('setupScreen').style.display='flex';
+    showToast('接続に失敗しました','error');
+    localStorage.removeItem('cv_url');localStorage.removeItem('cv_key');
+    return false;
+  }
+}
+async function loadData(){
+  showLoading();
+  try{
+    const [{data:cData,error:cErr},{data:dData,error:dErr}]=await Promise.all([
+      sbClient.from('cards').select('*').order('created_at',{ascending:true}),
+      sbClient.from('decks').select('*').order('name',{ascending:true}),
+    ]);
+    if(cErr)throw cErr;if(dErr)throw dErr;
+    allCards=(cData||[]).map(r=>({id:r.id,name:r.name,color:r.color,type:r.type,level:r.level,img:r.image_url}));
+    allDecks=(dData||[]).map(r=>({id:r.id,name:r.name,cardIds:r.card_ids||[]}));
+  }catch(e){showToast('読み込みに失敗しました','error');}
+  finally{hideLoading();}
+}
+
+// ════════════════
+//  定数
+// ════════════════
+const CM={赤:'#e05050',青:'#5090e0',緑:'#50c060',黄:'#d0b030',紫:'#a050c0',無色:'#aaaacc'};
+const TI={イジン:'⚔️',マホウ:'✨',ハイケイ:'🌄',マリョク:'🔮'};
+// ── フィールド：8行×10列（80マス）──
+// 行順: 01-10(行0), 41-50(行1), 11-20(行2), 51-60(行3)
+//       21-30(行4), 61-70(行5), 31-40(行6), 71-80(行7)
+//
+// ゾーン割り当て:
+//  ハイケイ:  1,2,41,42, 11,12,51,52, 21,22,61,62
+//  イジン:    3-10, 43-50
+//  ガーディアン: 13-19, 53-59
+//  デッキ:    20
+//  墓地:      60
+//  マリョク:  23-30, 63-70
+//  手札:      31-40, 71-80
+
+const ZONES={
+  // 行0: 2-10
+  2:'haikei',3:'ijin',4:'ijin',5:'ijin',6:'ijin',7:'ijin',8:'ijin',9:'ijin',10:'empty',
+  // 行1: 12-20
+  12:'haikei',13:'ijin',14:'ijin',15:'ijin',16:'ijin',17:'ijin',18:'ijin',19:'ijin',20:'deck',
+  // 行2: 22-30
+  22:'haikei',23:'guardian',24:'guardian',25:'guardian',26:'guardian',27:'guardian',28:'guardian',29:'guardian',30:'deck',
+  // 行3: 32-40
+  32:'haikei',33:'guardian',34:'guardian',35:'guardian',36:'guardian',37:'guardian',38:'guardian',39:'guardian',40:'grave',
+  // 行4: 42-50
+  42:'haikei',43:'maryoku',44:'maryoku',45:'maryoku',46:'maryoku',47:'maryoku',48:'maryoku',49:'maryoku',50:'empty',
+  // 行5: 52-60
+  52:'haikei',53:'maryoku',54:'maryoku',55:'maryoku',56:'maryoku',57:'maryoku',58:'maryoku',59:'maryoku',60:'empty',
+  // 行6: 62-70
+  62:'haikei',63:'hand',64:'hand',65:'hand',66:'hand',67:'hand',68:'hand',69:'hand',70:'hand',
+  // 行7: 72-80
+  72:'haikei',73:'hand',74:'hand',75:'hand',76:'hand',77:'hand',78:'hand',79:'hand',80:'hand',
+};
+const ZONE_NAMES={haikei:'ハイケイ',ijin:'イジン',guardian:'ガーディアン',deck:'デッキ',maryoku:'マリョク',grave:'墓地',hand:'手札',empty:''};
+const LABEL_AT={haikei:2,ijin:5,guardian:26,deck:20,grave:40,maryoku:46,hand:66};
+const ZONE_STYLE={
+  haikei:  {fill:'rgba(180,150,100,.18)',stroke:'rgba(160,125,75,.70)'},
+  ijin:    {fill:'rgba(200,140,90,.18)', stroke:'rgba(180,115,65,.70)'},
+  guardian:{fill:'rgba(170,145,95,.18)',stroke:'rgba(150,120,70,.70)'},
+  deck:    {fill:'rgba(140,105,60,.25)',stroke:'rgba(120,88,45,.85)'},
+  maryoku: {fill:'rgba(160,135,85,.18)',stroke:'rgba(140,110,60,.70)'},
+  grave:   {fill:'rgba(120,90,50,.22)', stroke:'rgba(100,72,35,.85)'},
+  hand:    {fill:'rgba(190,170,130,.15)',stroke:'rgba(170,145,100,.55)'},
+  empty:   {fill:'rgba(0,0,0,0)',stroke:'rgba(0,0,0,0)'},
+};
+const ZONE_SLOTS={
+  haikei:   [2,12,22,32,42,52,62,72],
+  ijin:     [3,4,5,6,7,8,9,13,14,15,16,17,18,19],
+  guardian: [23,24,25,26,27,28,29,33,34,35,36,37,38,39],
+  deck:     [20,30],
+  grave:    [40],
+  maryoku:  [43,44,45,46,47,48,49,53,54,55,56,57,58,59],
+  hand:     [63,64,65,66,67,68,69,70,73,74,75,76,77,78,79,80],
+};
+const TOTAL_SLOTS=80;
+
+// 全スロット
+function getAllSlots(player){
+  const all=[];
+  for(const [s,e] of [[2,10],[12,20],[22,30],[32,40],[42,50],[52,60],[62,70],[72,80]]){
+    for(let n=s;n<=e;n++) if(ZONES[n]) all.push(n);
+  }
+  return all;
+}
+// ゾーンの空きスロットを左上詰めで探す
+function findEmptySlot(player,zone){
+  return (ZONE_SLOTS[zone]||[]).find(s=>!cells[player][s]);
+}
+
+// ════════════════
+//  ゲーム状態
+// ════════════════
+let selectingFor=null; // 'first'/'second'（デッキ選択中の対象）
+let firstDeckId=null,secondDeckId=null;
+let tempSelectedId=null;
+const cells={first:{},second:{}};
+const deckPile={first:[],second:[]};
+let mulliganPhase=null;
+let perspective='first';
+let currentTurn='first';
+// 履歴
+const MAX_HISTORY=10;
+let history=[],historyIdx=-1;
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  return arr;
+}
+
+// ════════════════
+//  VS画面
+// ════════════════
+function openDeckSelect(role){
+  selectingFor=role;
+  tempSelectedId=role==='first'?firstDeckId:secondDeckId;
+  document.getElementById('vsScreen').style.display='none';
+  document.getElementById('deckSelectScreen').style.display='block';
+  const isFirst=role==='first';
+  document.getElementById('dsPhase').textContent=isFirst?'先攻デッキを選択':'後攻デッキを選択';
+  document.getElementById('dsPhase').className='ds-phase '+(isFirst?'first':'second');
+  document.getElementById('dsTitle').textContent=isFirst?'先攻デッキを選択':'後攻デッキを選択';
+  document.getElementById('dsConfirmBtn').className='ds-confirm '+(isFirst?'first-btn':'second-btn');
+  document.getElementById('dsConfirmBtn').textContent=isFirst?'この先攻デッキを選択':'この後攻デッキを選択';
+  renderDeckSelectGrid();
+}
+
+function renderDeckSelectGrid(){
+  const grid=document.getElementById('deckSelectGrid');
+  const valid=allDecks.filter(d=>d.cardIds.length>=40);
+  if(!valid.length){
+    grid.innerHTML=`<div style="color:var(--text2);font-size:12px;padding:20px 0;grid-column:1/-1;">40枚以上のデッキがありません。</div>`;
+    return;
+  }
+  grid.innerHTML=valid.map(d=>{
+    const cc=allCards.find(c=>c.id===d.cardIds[0]);
+    const selClass=d.id===tempSelectedId?(selectingFor==='first'?' selected-first':' selected-second'):'';
+    return `<div class="ds-card${selClass}" onclick="tempSelectDeck('${d.id}')">
+      <div class="ds-cover">${cc?.img?`<img src="${cc.img}" loading="lazy">`:`<span>📦</span>`}</div>
+      <div class="ds-info">
+        <div class="ds-name">${d.name}</div>
+        <div class="ds-count"><span>${d.cardIds.length}</span> 枚</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function tempSelectDeck(id){
+  // タップで即選択してVS画面に戻る
+  if(selectingFor==='first') firstDeckId=id;
+  else secondDeckId=id;
+  document.getElementById('deckSelectScreen').style.display='none';
+  document.getElementById('vsScreen').style.display='flex';
+  updateVsFrames();
+}
+
+function confirmDeckSelect(){
+  // 後方互換のため残す（現在は未使用）
+}
+
+function updateVsFrames(){
+  // 先攻フレーム
+  const firstFrame=document.getElementById('firstFrameInner');
+  if(firstDeckId){
+    const d=allDecks.find(x=>x.id===firstDeckId);
+    const cc=allCards.find(c=>c.id===d?.cardIds[0]);
+    if(cc?.img){
+      document.getElementById('firstFrame').innerHTML=
+        `<img src="${cc.img}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+         <div class="frame-overlay"><div class="frame-name">${d.name}</div></div>`;
+    } else {
+      document.getElementById('firstFrame').innerHTML=
+        `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+          <span style="font-size:32px">📦</span><span style="font-size:11px;color:var(--first);font-weight:700">${d?.name||''}</span></div>`;
+    }
+  }
+  // 後攻フレーム
+  if(secondDeckId){
+    const d=allDecks.find(x=>x.id===secondDeckId);
+    const cc=allCards.find(c=>c.id===d?.cardIds[0]);
+    if(cc?.img){
+      document.getElementById('secondFrame').innerHTML=
+        `<img src="${cc.img}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+         <div class="frame-overlay"><div class="frame-name">${d.name}</div></div>`;
+    } else {
+      document.getElementById('secondFrame').innerHTML=
+        `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+          <span style="font-size:32px">📦</span><span style="font-size:11px;color:var(--second);font-weight:700">${d?.name||''}</span></div>`;
+    }
+  }
+  // スタートボタン
+  document.getElementById('vsStartBtn').disabled=!(firstDeckId&&secondDeckId);
+}
+
+// ════════════════
+//  ゲーム開始
+// ════════════════
+function startGame(){
+  ['first','second'].forEach(p=>{
+    const deck=allDecks.find(d=>d.id===(p==='first'?firstDeckId:secondDeckId));
+    const cards=deck.cardIds.map(id=>allCards.find(c=>c.id===id)).filter(Boolean);
+    deckPile[p]=shuffle([...cards]);
+    for(let n=1;n<=40;n++)cells[p][n]=null;
+  });
+  mulliganPhase=null;perspective='first';currentTurn='first';
+  history=[];historyIdx=-1;
+
+  document.getElementById('vsScreen').style.display='none';
+  document.getElementById('fieldScreen').style.display='block';
+  document.getElementById('endGameBtn').style.display='flex';
+
+  showSimOverlay('first');
+  initBothFields();
+  updatePerspective();
+}
+
+function showSimOverlay(phase){
+  const label=phase==='first'?'先攻':'後攻';
+  document.getElementById('simOverlayTitle').textContent=`${label}デッキの準備`;
+  document.getElementById('simOverlaySub').textContent=
+    `${label}デッキをシャッフルして\n手札6枚・ガーディアン4枚を配ります`;
+  document.getElementById('simOverlay').classList.add('show');
+  document.getElementById('simOverlay').dataset.phase=phase;
+}
+
+function beginSimulation(){
+  const phase=document.getElementById('simOverlay').dataset.phase;
+  document.getElementById('simOverlay').classList.remove('show');
+  placeInitial(phase);
+  renderAllCells(phase);
+  // マリガンバナー＋ヘッダーボタン表示
+  mulliganPhase=phase;
+  const label=phase==='first'?'先攻':'後攻';
+  document.getElementById('mulliganWho').textContent=label;
+  document.getElementById('mulliganWho').className='mulligan-who '+phase;
+  document.getElementById('mulliganBanner').classList.add('show');
+  document.getElementById('fieldWrap').classList.add('has-banner');
+  document.getElementById('mulliganHeaderBtns').classList.add('show');
+}
+
+function placeInitial(phase){
+  for(let i=0;i<6;i++){
+    const card=deckPile[phase].shift();
+    if(card)cells[phase][ZONE_SLOTS.hand[i]]={card,faceDown:false};
+  }
+  for(let i=0;i<4;i++){
+    const card=deckPile[phase].shift();
+    if(card)cells[phase][ZONE_SLOTS.guardian[i]]={card,faceDown:true};
+  }
+}
+
+function doMulligan(){
+  const p=mulliganPhase;
+  [...ZONE_SLOTS.hand.slice(0,6),...ZONE_SLOTS.guardian.slice(0,4)].forEach(n=>{
+    if(cells[p][n]?.card){deckPile[p].push(cells[p][n].card);cells[p][n]=null;}
+  });
+  deckPile[p]=shuffle(deckPile[p]);
+  placeInitial(p);
+  renderAllCells(p);
+}
+
+function skipMulligan(){
+  const phase=mulliganPhase;
+  document.getElementById('mulliganBanner').classList.remove('show');
+  document.getElementById('fieldWrap').classList.remove('has-banner');
+  document.getElementById('mulliganHeaderBtns').classList.remove('show');
+  mulliganPhase=null;
+
+  if(phase==='first'){
+    // 先攻完了 → 後攻視点に切替 → 後攻の準備
+    perspective='second';
+    updatePerspective();
+    setTimeout(()=>showSimOverlay('second'),300);
+  } else {
+    // 後攻完了 → 先攻視点に切替 → bottomControls表示
+    perspective='first';
+    updatePerspective();
+    // bottomControlsを表示（ターン終了・戻る進む有効化）
+    document.getElementById('bottomControls').style.display='flex';
+    document.getElementById('endTurnBtn').disabled=false;
+    document.getElementById('endTurnBtn').style.opacity='1';
+    // 履歴初期化
+    history=[];historyIdx=-1;pushHistory();
+    updateHistoryBtns();
+    document.getElementById('turnIndicator').style.display='block';
+    document.getElementById('turnIndicator').textContent='先攻ターン';
+    document.getElementById('turnIndicator').className='first';
+    document.getElementById('turnBadge').style.display='block';
+    document.getElementById('turnBadge').textContent='先攻ターン';
+    showTurnAnnounce('イジンデン！');
+    currentTurn='first';
+  }
+}
+
+function endGame(){
+  if(!confirm('シミュレーションを終了しますか？'))return;
+  document.getElementById('fieldScreen').style.display='none';
+  document.getElementById('bottomControls').style.display='none';
+  document.getElementById('mulliganBanner').classList.remove('show');
+  document.getElementById('fieldWrap').classList.remove('has-banner');
+  document.getElementById('mulliganHeaderBtns').classList.remove('show');
+  document.getElementById('endGameBtn').style.display='none';
+  document.getElementById('vsScreen').style.display='flex';
+  firstDeckId=null;secondDeckId=null;
+  // VS画面リセット
+  document.getElementById('firstFrame').innerHTML=`<div id="firstFrameInner" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;"><span style="font-size:32px;color:var(--text2)">📦</span><span style="font-size:11px;color:var(--text2)">未選択</span></div>`;
+  document.getElementById('secondFrame').innerHTML=`<div id="secondFrameInner" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;"><span style="font-size:32px;color:var(--text2)">📦</span><span style="font-size:11px;color:var(--text2)">未選択</span></div>`;
+  document.getElementById('vsStartBtn').disabled=true;
+}
+
+// ════════════════
+//  視点・ターン
+// ════════════════
+function switchPerspective(){
+  perspective=perspective==='first'?'second':'first';
+  updatePerspective();
+}
+
+function updatePerspective(){
+  const isFirst=perspective==='first';
+  const myP=perspective,oppP=isFirst?'second':'first';
+  document.getElementById('myLabel').textContent=isFirst?'先攻（自分）':'後攻（自分）';
+  document.getElementById('myLabel').className='area-label '+(isFirst?'first-label':'second-label');
+  document.getElementById('opponentLabel').textContent=isFirst?'後攻（相手）':'先攻（相手）';
+  document.getElementById('opponentLabel').className='area-label '+(isFirst?'second-label':'first-label');
+  // switchBtnテキスト
+  const sb=document.getElementById('switchBtn');
+  sb.textContent=isFirst?'後攻視点に切替':'先攻視点に切替';
+  sb.className='bc-btn switch'+(isFirst?'':' is-second');
+  renderAllCells(myP,'my');
+  renderAllCells(oppP,'opponent');
+}
+
+function endTurn(){
+  pushHistory();
+  // ターン終了：次のプレイヤーの「寝かせる」を全て起こす
+  const nextPlayer = currentTurn==='first'?'second':'first';
+  for(let n=1;n<=40;n++){
+    if(cells[nextPlayer][n]?.sleeping) cells[nextPlayer][n].sleeping=false;
+  }
+  currentTurn=nextPlayer;
+  perspective=currentTurn;
+  updatePerspective();
+  const label=currentTurn==='first'?'先攻ターン':'後攻ターン';
+  document.getElementById('turnIndicator').textContent=label;
+  document.getElementById('turnIndicator').className=currentTurn==='first'?'first':'second';
+  const tb=document.getElementById('turnBadge');
+  if(tb){tb.textContent=label;tb.style.background=currentTurn==='first'?'rgba(192,112,48,.2)':'rgba(80,128,176,.2)';tb.style.color=currentTurn==='first'?'var(--first)':'var(--second)';tb.style.borderColor=currentTurn==='first'?'rgba(192,112,48,.4)':'rgba(80,128,176,.4)';}
+  showTurnAnnounce(label);
+}
+
+function quickDraw(){
+  const player=perspective;
+  if(!deckPile[player].length){showToast('デッキが空です','error');return;}
+  const emptySlot=findEmptySlot(player,'hand');
+  pushHistory();
+  const card=deckPile[player].shift();
+  cells[player][emptySlot]={card,faceDown:false,sleeping:false};
+  renderAllCells(player,'my');
+}
+
+function showTurnAnnounce(text){
+  const overlay=document.getElementById('turnAnnounce');
+  const textEl=document.getElementById('turnAnnounceText');
+  textEl.style.color=text==='イジンデン！'?'#7a4820':text.includes('先攻')?'#c06020':'#3060a0';
+  textEl.textContent=text;
+  overlay.style.display='flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>textEl.style.opacity='1'));
+  setTimeout(()=>{textEl.style.opacity='0';setTimeout(()=>overlay.style.display='none',400);},1000);
+}
+
+// ════════════════
+//  履歴
+// ════════════════
+function snapshotState(){
+  return {
+    cells:{
+      first:Object.fromEntries(Object.entries(cells.first).map(([k,v])=>[k,v?{...v}:null])),
+      second:Object.fromEntries(Object.entries(cells.second).map(([k,v])=>[k,v?{...v}:null])),
+    },
+    deckPile:{first:[...deckPile.first],second:[...deckPile.second]},
+    perspective,currentTurn,
+  };
+}
+function pushHistory(){
+  history=history.slice(0,historyIdx+1);
+  history.push(snapshotState());
+  if(history.length>MAX_HISTORY)history.shift();
+  historyIdx=history.length-1;
+  updateHistoryBtns();
+}
+function restoreSnapshot(snap){
+  Object.assign(cells.first,snap.cells.first);
+  Object.assign(cells.second,snap.cells.second);
+  deckPile.first=[...snap.deckPile.first];
+  deckPile.second=[...snap.deckPile.second];
+  perspective=snap.perspective;currentTurn=snap.currentTurn;
+  updatePerspective();
+}
+function undoHistory(){
+  if(historyIdx<=0)return;
+  historyIdx--;restoreSnapshot(history[historyIdx]);updateHistoryBtns();
+}
+function redoHistory(){
+  if(historyIdx>=history.length-1)return;
+  historyIdx++;restoreSnapshot(history[historyIdx]);updateHistoryBtns();
+}
+function updateHistoryBtns(){
+  const u=document.getElementById('undoBtn'),r=document.getElementById('redoBtn');
+  if(!u||!r)return;
+  const cu=historyIdx>0,cr=historyIdx<history.length-1;
+  u.disabled=!cu;u.style.opacity=cu?'1':'.35';
+  r.disabled=!cr;r.style.opacity=cr?'1':'.35';
+}
+
+// ════════════════
+//  フィールド描画
+// ════════════════
+function initBothFields(){
+  ['my','opponent'].forEach(which=>{
+    const grid=document.getElementById(which+'Grid');
+    grid.innerHTML='';
+    // 72マス（9列×8行）
+    const rowOrder=[
+      [2,10],[12,20],[22,30],[32,40],
+      [42,50],[52,60],[62,70],[72,80]
+    ];
+    for(const [s,e] of rowOrder){
+      for(let n=s;n<=e;n++){
+        const div=document.createElement('div');
+        div.className='cell';div.dataset.n=n;
+        grid.appendChild(div);
+      }
+    }
+    // myGridのみgridレベルでイベント委譲
+    if(which==='my'){
+      grid.addEventListener('click',e=>{
+        const cell=e.target.closest('.cell');
+        if(!cell) return;
+        const n=parseInt(cell.dataset.n);
+        if(!n||isNaN(n)) return;
+        onCellTap(perspective, n, 'my');
+      });
+    }
+  });
+  drawZones('myCanvas','myField');
+  drawZones('opponentCanvas','opponentField');
+}
+
+function renderAllCells(player,which){
+  if(!which)which=player===perspective?'my':'opponent';
+  const isOpp=which==='opponent';
+  getAllSlots(player).forEach(n=>renderCell(n,player,which,isOpp));
+}
+
+function renderCell(n,player,which,isOpponent){
+  const zone=ZONES[n];
+  const el=document.querySelector(`#${which}Grid .cell[data-n="${n}"]`);
+  if(!el)return;
+  // 空白マスは何も表示しない
+  if(zone==='empty'){el.innerHTML='';return;}
+  const state=cells[player][n];
+
+  if(zone==='deck'){
+    el.innerHTML=`<div class="deck-pile">
+      <div class="deck-pile-count">${deckPile[player].length}</div>
+      <div class="deck-pile-label">デッキ</div>
+    </div>`;
+    return;
+  }
+  // 相手の手札は全て裏向き
+  if(isOpponent&&zone==='hand'){
+    el.innerHTML=state?.card?`<div class="card-back"></div>`:'';
+    return;
+  }
+  if(state?.card){
+    const c=state.card;
+    if(state.faceDown){
+      el.innerHTML=`<div class="card-back"></div>`;
+    }else{
+      const img=c.img?`<img src="${c.img}" loading="lazy">`:`<div class="no-img">${TI[c.type]||'🃏'}</div>`;
+      const sleepStyle=state.sleeping?'transform:rotate(-90deg);transform-origin:center;width:100%;height:100%;':'';
+      // 装備カードのチラ見せ（下からはみ出す）
+      const equipPeek=(state.equips&&state.equips.length>0)?
+        state.equips.map(eq=>eq.img
+          ?`<img src="${eq.img}" style="position:absolute;bottom:-8px;left:3px;right:3px;height:30%;object-fit:contain;border-radius:0 0 3px 3px;opacity:.8;background:var(--bg2);">`
+          :`<div style="position:absolute;bottom:-8px;left:3px;right:3px;height:30%;background:var(--bg2);border-radius:0 0 3px 3px;opacity:.8;display:flex;align-items:center;justify-content:center;font-size:8px;">${TI[eq.type]||'🃏'}</div>`
+        ).join(''):'';
+      el.innerHTML=`<div class="card-face" style="${sleepStyle}">${img}${equipPeek}<div class="cbar" style="background:${CM[c.color]||'#aaa'}"></div></div>`;
+    }
+    return;
+  }
+  el.innerHTML=LABEL_AT[zone]===n?`<div class="cell-label">${ZONE_NAMES[zone]}</div>`:'';
+}
+
+function drawZones(canvasId,fieldId){
+  const fieldEl=document.getElementById(fieldId);
+  const canvas=document.getElementById(canvasId);
+  const W=fieldEl.clientWidth,H=fieldEl.clientHeight;
+  if(!W||!H)return;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+  const COLS=9,ROWS=8,GAP=2;
+  const cw=(W-GAP*(COLS-1))/COLS,ch=(H-GAP*(ROWS-1))/ROWS;
+  function cellXY(n){
+    // 行: 2-10(0), 12-20(1), 22-30(2), 32-40(3)
+    //     42-50(4), 52-60(5), 62-70(6), 72-80(7)
+    const rowMap=[
+      [2,10,0],[12,20,1],[22,30,2],[32,40,3],
+      [42,50,4],[52,60,5],[62,70,6],[72,80,7]
+    ];
+    let row=0,col=0;
+    for(const [s,e,r] of rowMap){
+      if(n>=s&&n<=e){row=r;col=(n-s);break;}
+    }
+    return{x:col*(cw+GAP),y:row*(ch+GAP),w:cw,h:ch};
+  }
+  const zg={};
+  for(const [n,z] of Object.entries(ZONES)){if(!zg[z])zg[z]=[];zg[z].push(parseInt(n));}
+  const R=5;
+  for(const [zone,nums] of Object.entries(zg)){
+    const st=ZONE_STYLE[zone];
+    let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+    for(const n of nums){const{x,y,w,h}=cellXY(n);x1=Math.min(x1,x);y1=Math.min(y1,y);x2=Math.max(x2,x+w);y2=Math.max(y2,y+h);}
+    ctx.beginPath();
+    ctx.moveTo(x1+R,y1);ctx.lineTo(x2-R,y1);ctx.arcTo(x2,y1,x2,y1+R,R);
+    ctx.lineTo(x2,y2-R);ctx.arcTo(x2,y2,x2-R,y2,R);
+    ctx.lineTo(x1+R,y2);ctx.arcTo(x1,y2,x1,y2-R,R);
+    ctx.lineTo(x1,y1+R);ctx.arcTo(x1,y1,x1+R,y1,R);
+    ctx.closePath();
+    ctx.fillStyle=st.fill;ctx.fill();ctx.strokeStyle=st.stroke;ctx.lineWidth=1.5;ctx.stroke();
+  }
+}
+
+let resizeTimer;
+const ro=new ResizeObserver(()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{drawZones('myCanvas','myField');drawZones('opponentCanvas','opponentField');},30);
+});
+
+// ════════════════
+//  ユーティリティ
+// ════════════════
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className=`toast show ${type}`;
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+function showLoading(){document.getElementById('loadingOverlay').classList.add('show');}
+function hideLoading(){document.getElementById('loadingOverlay').classList.remove('show');}
+
+
+// ════════════════
+//  アクション（カードタップ）
+// ════════════════
+let actionState = null; // {player, n, zone, card}
+let moveState   = null; // {player, n} 移動中
+
+function onCellTap(player, n, which){
+  // 自分視点フィールドのみ操作可能
+  if(which !== 'my') return;
+  // マリガン中は操作不可
+  if(mulliganPhase !== null) return;
+  const zone = ZONES[n];
+  const state = cells[player][n];
+
+  // 移動先選択モード
+  if(moveState){
+    if(n === moveState.n){ cancelMove(); return; }
+    // 装備モード：イジンゾーンの空きマスをタップしたらそこへ移動
+    if(equipMode){
+      const tZone = ZONES[n];
+      const tState = cells[player][n];
+      if(tZone==='ijin' && !tState?.card){
+        pushHistory();
+        // 元の場所からカードを取り出し、指定マスに置く
+        if(equipSourceFromGrave){
+          const gs=cells[player][equipSourceFromGrave.n]?.graveStack||[];
+          const card=gs.splice(equipSourceFromGrave.idx,1)[0];
+          if(gs.length===0) cells[player][equipSourceFromGrave.n]=null;
+          else cells[player][equipSourceFromGrave.n].card=gs[gs.length-1];
+          if(card) cells[player][n]={card, faceDown:false, sleeping:false};
+          equipSourceFromGrave=null;
+        } else if(equipSourceN!==null){
+          const card=cells[player][equipSourceN]?.card;
+          cells[player][equipSourceN]=null;
+          if(card) cells[player][n]={card, faceDown:false, sleeping:false};
+          equipSourceN=null;
+        }
+        equipSourceCard=null;
+        equipMode=false; equipTargetN=null; moveState=null;
+        cancelMove();
+        renderAllCells(player,'my');
+      }
+      return;
+    }
+    // デッキゾーンへの移動：一番上/下を選択
+    if(ZONES[n]==='deck'){
+      // pendingとして保存してdeckMoveOverlay表示
+      deckMovePendingFrom = moveState.n;
+      deckMovePendingPlayer = moveState.player;
+      cancelMove();
+      document.getElementById('deckMoveOverlay').classList.add('open');
+      return;
+    }
+    if(canMoveTo(moveState.player, moveState.n, n)){
+      pushHistory();
+      executeMove(moveState.player, moveState.n, n);
+    }
+    return;
+  }
+
+  // デッキタップ
+  if(zone === 'deck'){
+    openDeckAction(player);
+    return;
+  }
+  // 墓地タップ→一覧
+  if(zone==='grave'){
+    openGraveList(player, ZONE_SLOTS.grave[0]);
+    return;
+  }
+  // カードなし
+  if(!state?.card) return;
+  // アクションシート表示
+  openCardAction(player, n);
+}
+
+function openCardAction(player, n){
+  const state = cells[player][n];
+  const c = state.card;
+  const zone = ZONES[n];
+  actionState = {player, n, zone, card:c};
+
+  // 大画像
+  const bigImg = document.getElementById('actionBigImg');
+  if(state.faceDown){
+    bigImg.innerHTML = '<div style="width:100%;height:100%;background:repeating-linear-gradient(45deg,rgba(100,65,25,.5) 0px,rgba(100,65,25,.5) 2px,rgba(160,115,60,.15) 2px,rgba(160,115,60,.15) 8px);border-radius:8px;"></div>';
+  } else {
+    bigImg.innerHTML = c.img ? `<img src="${c.img}" style="width:100%;height:100%;object-fit:contain;">` : `<div style="font-size:22px">${TI[c.type]||'🃏'}</div>`;
+  }
+  document.getElementById('actionCardName2').textContent = state.faceDown ? '（裏向き）' : c.name;
+  document.getElementById('actionCardSub2').textContent = state.faceDown ? ZONE_NAMES[zone]||'' : `${c.type||''} / ${c.color||''} / Lv.${c.level||0}`;
+
+  const btns = [];
+  // 裏向きカード
+  if(state.faceDown){
+    btns.push(`<button class="action-btn" onclick="showDetailFromState()">🔍 表を確認</button>`);
+    btns.push(`<button class="action-btn" onclick="doFlipUp()">🔄 表にする</button>`);
+  }
+  btns.push(`<button class="action-btn primary" onclick="startMove()">↗ 移動</button>`);
+
+  if(['ijin','guardian','haikei'].includes(zone)){ // 表向き・裏向き両方
+    if(!state.sleeping)
+      btns.push(`<button class="action-btn" onclick="doSleep()">↩️ 寝かせる</button>`);
+    else
+      btns.push(`<button class="action-btn" onclick="doWakeUp()">⬆ 起こす</button>`);
+  }
+  if(zone === 'ijin' && !state.faceDown){
+    btns.push(`<button class="action-btn" onclick="startEquip()">⚙ 装備する</button>`);
+    if(state.equips && state.equips.length > 0){
+      btns.push(`<button class="action-btn" onclick="showEquips()">📋 装備カードを確認</button>`);
+    }
+  }
+  if(zone === 'maryoku' && !state.faceDown){
+    btns.push(`<button class="action-btn" onclick="doFlipDown()">🔄 裏にする</button>`);
+  }
+
+  document.getElementById('actionBtns').innerHTML = btns.join('');
+  document.getElementById('actionOverlay').classList.add('open');
+}
+
+function openDeckAction(player, deckN){
+  actionState = {player, n:deckN||20, zone:'deck', card:null};
+  document.getElementById('actionBigImg').innerHTML = '<div style="width:100%;height:100%;background:repeating-linear-gradient(-45deg,rgba(100,65,25,.5) 0px,rgba(100,65,25,.5) 2px,rgba(160,115,60,.15) 2px,rgba(160,115,60,.15) 8px);border-radius:8px;display:flex;align-items:center;justify-content:center;"><span style="font-size:20px">📦</span></div>';
+  document.getElementById('actionCardName2').textContent = 'デッキ';
+  document.getElementById('actionCardSub2').textContent = `残り ${deckPile[player].length} 枚`;
+  document.getElementById('actionBtns').innerHTML =
+    `<button class="action-btn primary" onclick="doDraw()">🤚 ドロー（手札へ）</button>
+     <button class="action-btn" onclick="startMoveFromDeck()">↗ 任意の場所へ移動</button>`;
+  document.getElementById('actionOverlay').classList.add('open');
+}
+
+function closeAction(){
+  document.getElementById('actionOverlay').classList.remove('open');
+  actionState = null;
+}
+function closeGraveOverlay(){ document.getElementById('graveOverlay').style.display='none'; }
+function closeEquipConfirm(){ document.getElementById('equipConfirmOverlay').classList.remove('open'); }
+function closeDeckMove(){ document.getElementById('deckMoveOverlay').classList.remove('open'); }
+
+// 裏向きカードの表を確認
+function showDetailFromState(){
+  const c = actionState?.card;
+  if(!c) return;
+  // アクションシートの大画像を表示用に切り替え
+  document.getElementById('actionBigImg').innerHTML = c.img ? `<img src="${c.img}" style="width:100%;height:100%;object-fit:contain;">` : `<div style="font-size:22px">${TI[c.type]||'🃏'}</div>`;
+  document.getElementById('actionCardName2').textContent = c.name;
+  document.getElementById('actionCardSub2').textContent = `${c.type||''} / ${c.color||''} / Lv.${c.level||0}`;
+}
+
+// 寝かせる / 起こす
+function doSleep(){
+  const {player,n} = actionState;
+  pushHistory();
+  cells[player][n].sleeping = true;
+  renderAllCells(player,'my');
+  closeAction();
+}
+function doWakeUp(){
+  const {player,n} = actionState;
+  pushHistory();
+  cells[player][n].sleeping = false;
+  renderAllCells(player,'my');
+  closeAction();
+}
+// 表にする（全裏向きカード共通）
+function doFlipUp(){
+  const {player,n} = actionState;
+  pushHistory();
+  cells[player][n].faceDown = false;
+  renderAllCells(player,'my');
+  closeAction();
+}
+
+// 裏にする
+function doFlipDown(){
+  const {player,n} = actionState;
+  pushHistory();
+  cells[player][n].faceDown = true;
+  renderAllCells(player,'my');
+  closeAction();
+}
+
+// ドロー
+function doDraw(){
+  const player = actionState.player;
+  if(!deckPile[player].length){ showToast('デッキが空です','error'); closeAction(); return; }
+  const emptySlot = findEmptySlot(player,'hand');
+  pushHistory();
+  const card = deckPile[player].shift();
+  if(emptySlot !== undefined){
+    cells[player][emptySlot] = {card, faceDown:false, sleeping:false};
+  } else {
+    showToast('手札がいっぱいです','error');
+    deckPile[player].unshift(card);
+    return;
+  }
+  renderAllCells(player,'my');
+  closeAction();
+}
+
+// ════════════════
+//  移動
+// ════════════════
+let equipMode = false;
+let equipTargetN = null;
+
+function startMove(){
+  const {player,n} = actionState;
+  closeAction();
+  moveState = {player, n};
+  highlightMoves(player, n);
+  const el = document.querySelector(`#myGrid .cell[data-n="${n}"]`);
+  if(el) el.classList.add('selected-cell');
+}
+
+function startMoveFromDeck(){
+  const player = actionState.player;
+  closeAction();
+  moveState = {player, n:'deck'};
+  highlightDeckMoves(player);
+  document.getElementById('moveCancelBar').classList.add('show');
+}
+
+// 装備中の一時的なカード保持
+let equipPendingCard = null;
+let equipPendingFromN = null;
+
+function startEquip(){
+  const {player,n} = actionState;
+  // actionStateをequipのために保持
+  const savedActionState = {...actionState};
+  closeAction();
+  actionState = savedActionState; // closeActionで消えるので復元
+  equipMode = true;
+  equipTargetN = n;
+  moveState = {player, n};
+  // ハイケイゾーン・マリョクゾーンのカード＋墓地をハイライト
+  for(let i=1;i<=40;i++){
+    const z = ZONES[i];
+    const s = cells[player][i];
+    const el = document.querySelector(`#myGrid .cell[data-n="${i}"]`);
+    if(!el) continue;
+    if(i === n){ el.classList.add('selected-cell'); continue; }
+    if(s?.card && ['haikei','maryoku','grave'].includes(z)){
+      el.classList.add('highlight');
+    }
+  }
+  document.getElementById('moveCancelBar').classList.add('show');
+}
+
+function highlightMoves(player, fromN){
+  const allSl=getAllSlots(player);
+  allSl.forEach(i=>{
+    if(i===fromN) return;
+    const el=document.querySelector(`#myGrid .cell[data-n="${i}"]`);
+    if(!el) return;
+    if(canMoveTo(player,fromN,i)){
+      el.classList.add('highlight');
+      const z=ZONES[i]||'';
+      if(z) el.classList.add('hl-'+z);
+    }
+  });
+  document.getElementById('moveCancelBar').classList.add('show');
+}
+
+function highlightDeckMoves(player){
+  for(let i=1;i<=40;i++){
+    const z = ZONES[i];
+    const el = document.querySelector(`#myGrid .cell[data-n="${i}"]`);
+    if(!el) continue;
+    if(['hand','haikei','ijin','maryoku','guardian'].includes(z) && !cells[player][i]?.card)
+      el.classList.add('highlight');
+  }
+}
+
+function cancelMove(){
+  moveState=null; equipMode=false; equipTargetN=null;
+  equipPendingCard=null; equipPendingFromN=null;
+  // ハイライト・選択中クラスを全て解除
+  ['myGrid','opponentGrid'].forEach(id=>{
+    const g=document.getElementById(id);
+    if(g) g.querySelectorAll('.cell').forEach(el=>{
+      el.className=el.className.replace(/\bhl-\S+/g,'').replace(/\bhighlight\b/,'').replace(/\bselected-cell\b/,'').trim();
+    });
+  });
+  document.getElementById('moveCancelBar').classList.remove('show');
+}
+
+function canMoveTo(player, fromN, toN){
+  if(fromN === toN) return false;
+  // 空白マスは移動不可
+  if(ZONES[toN]==='empty') return false;
+  const toZone = ZONES[toN];
+  const toState = cells[player][toN];
+  const fromZone = fromN === 'deck' ? 'deck' : ZONES[fromN];
+  const fromState = fromN === 'deck' ? null : cells[player][fromN];
+  const cardType = fromState?.card?.type;
+
+  // 装備モード
+  if(equipMode){
+    return toZone === 'hand' && cells[player][toN]?.card && !cells[player][toN]?.faceDown;
+  }
+
+  // デッキは何でも置ける（一番上/下の選択はdeckMoveOverlayで行う）
+  if(toZone === 'deck') return true;
+  // 墓地は何でも置ける
+  if(toZone === 'grave') return true;
+
+  // 手札は空きに何でも置ける
+  if(toZone === 'hand') return !toState?.card;
+
+  // 空きマスのみ
+  if(toState?.card) return false;
+
+  switch(toZone){
+    case 'haikei':   return cardType === 'ハイケイ';
+    case 'ijin':
+      // 全種類可。ガーディアンからの裏向きカードは裏のまま、それ以外は表
+      return true;
+    case 'guardian': return true; // 裏で置く
+    case 'maryoku':
+      return true; // 全種類可（マリョク以外は裏向きで置かれる）
+    default: return false;
+  }
+}
+
+function executeMove(player, fromN, toN){
+  const toZone = ZONES[toN];
+  const fromZone = (fromN==='deck'||fromN?.fromGrave) ? 'deck' : ZONES[fromN];
+
+  let card, sleeping=false;
+  const isFromGrave = moveState?.fromGrave;
+  // 移動前に元の向きを保存（cells消去前に取得）
+  const originalFaceDown = (!isFromGrave && fromN!=='deck' && fromN!==null)
+    ? (cells[player][fromN]?.faceDown || false) : false;
+
+  if(fromN==='deck'){
+    card=deckPile[player].shift();
+    if(!card){ showToast('デッキが空です','error'); cancelMove(); return; }
+  } else if(isFromGrave){
+    const gs=cells[player][fromN]?.graveStack||[];
+    const gIdx=moveState.graveIdx;
+    card=gs[gIdx];
+    gs.splice(gIdx,1);
+    if(gs.length===0) cells[player][fromN]=null;
+    else cells[player][fromN].card=gs.slice(-1)[0];
+  } else {
+    card=cells[player][fromN]?.card;
+    sleeping=cells[player][fromN]?.sleeping||false;
+    cells[player][fromN]=null;
+  }
+
+  // 向き決定
+  let faceDown=false;
+  if(toZone==='guardian') faceDown=true;
+  else if(toZone==='ijin'){
+    faceDown = originalFaceDown; // 元が裏向きなら裏のまま
+  }
+  else if(toZone==='maryoku') faceDown=!(fromZone==='hand'&&card.type==='マリョク');
+  else if(toZone==='grave') faceDown=false;
+
+  // 墓地はスタック
+  if(toZone==='grave'){
+    const graveN=ZONE_SLOTS.grave[0]; // =40
+    if(!cells[player][graveN]) cells[player][graveN]={graveStack:[],card:null,faceDown:false};
+    cells[player][graveN].graveStack.push(card);
+    cells[player][graveN].card=card;
+  } else {
+    // hand/maryokuは左上詰め
+    if(['hand','maryoku'].includes(toZone)){
+      const slot=findEmptySlot(player,toZone)??toN;
+      cells[player][slot]={card,faceDown,sleeping};
+    } else if(cells[player][toN]?.card){
+      // 他ゾーンで埋まっていれば空きに
+      const slot=findEmptySlot(player,toZone)??toN;
+      cells[player][slot]={card,faceDown,sleeping};
+    } else {
+      cells[player][toN]={card,faceDown,sleeping};
+    }
+  }
+
+  cancelMove();
+  renderAllCells(player,'my');
+}
+
+
+// 墓地一覧を開く（フィールド風グリッド）
+function openGraveList(player, n){
+  const graveStack = cells[player][n]?.graveStack || [];
+  if(!graveStack.length){ showToast('墓地は空です'); return; }
+  const grid = document.getElementById('graveFieldGrid');
+  grid.dataset.player=player;
+  grid.dataset.n=n;
+  grid.innerHTML = graveStack.map((c,i)=>`
+    <div onclick="openGraveCard(${i})" style="cursor:pointer;border-radius:6px;overflow:hidden;
+      border:1px solid var(--border);background:var(--bg2);aspect-ratio:5/7;
+      display:flex;align-items:center;justify-content:center;position:relative;">
+      ${c.img
+        ?`<img src="${c.img}" style="width:100%;height:100%;object-fit:contain;">`
+        :`<div style="font-size:16px">${TI[c.type]||'🃏'}</div>`}
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:${CM[c.color]||'#aaa'}"></div>
+    </div>`).join('');
+  document.getElementById('graveOverlay').style.display='flex';
+}
+
+function openGraveCard(idx){
+  const grid = document.getElementById('graveFieldGrid');
+  const player = grid.dataset.player;
+  const n = parseInt(grid.dataset.n);
+  const graveStack = cells[player][n]?.graveStack || [];
+  const c = graveStack[idx];
+  if(!c) return;
+  closeGraveOverlay();
+  actionState = {player, n:parseInt(n), zone:'grave', card:c, graveIdx:idx};
+  document.getElementById('actionBigImg').innerHTML = c.img?`<img src="${c.img}" style="width:100%;height:100%;object-fit:contain;">`:`<div style="font-size:22px">${TI[c.type]||'🃏'}</div>`;
+  document.getElementById('actionCardName2').textContent = c.name;
+  document.getElementById('actionCardSub2').textContent = `${c.type||''} / ${c.color||''} / Lv.${c.level||0}`;
+  document.getElementById('actionBtns').innerHTML =
+    `<button class="action-btn primary" onclick="startMoveFromGrave()">↗ 移動</button>`;
+  document.getElementById('actionOverlay').classList.add('open');
+}
+
+function startMoveFromGrave(){
+  const {player, n, graveIdx} = actionState;
+  closeAction();
+  moveState = {player, n, fromGrave:true, graveIdx};
+  // 全スロットにハイライト
+  const allSl=getAllSlots(player);
+  allSl.forEach(i=>{
+    if(i===n) return;
+    const z=ZONES[i]; const el=document.querySelector(`#myGrid .cell[data-n="${i}"]`);
+    if(!el) return;
+    if(z==='deck'||['hand','haikei','ijin','maryoku','guardian','grave'].includes(z)){
+      el.classList.add('highlight');
+      if(z) el.classList.add('hl-'+z);
+    }
+  });
+  document.getElementById('moveCancelBar').classList.add('show');
+}
+
+// 装備用：墓地から選択
+function openGraveForEquip(player, n){
+  const graveStack = cells[player][n]?.graveStack || [];
+  if(!graveStack.length){ showToast('墓地は空です'); return; }
+  const grid = document.getElementById('graveFieldGrid');
+  grid.dataset.player=player; grid.dataset.n=n;
+  grid.innerHTML = graveStack.map((c,i)=>`
+    <div onclick="selectGraveForEquip(${i},${n})" style="cursor:pointer;border-radius:6px;overflow:hidden;
+      border:1px solid var(--border);background:var(--bg2);aspect-ratio:5/7;
+      display:flex;align-items:center;justify-content:center;position:relative;">
+      ${c.img?`<img src="${c.img}" style="width:100%;height:100%;object-fit:contain;">`:`<div style="font-size:16px">${TI[c.type]||'🃏'}</div>`}
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:${CM[c.color]||'#aaa'}"></div>
+    </div>`).join('');
+  document.getElementById('graveOverlay').style.display='flex';
+}
+
+function selectGraveForEquip(idx, graveN){
+  const list = document.getElementById('graveFieldGrid');
+  const player = list.dataset.player;
+  const graveStack = cells[player][parseInt(graveN)]?.graveStack || [];
+  const c = graveStack[idx];
+  closeGraveOverlay();
+  equipPendingCard = c;
+  equipPendingFromN = {grave: parseInt(graveN), idx};
+  openEquipConfirmWithCard(c);
+}
+
+function openEquipConfirm(player, fromN, card){
+  equipPendingCard = card;
+  equipPendingFromN = fromN; // 数値（マス番号）
+  cancelMove();
+  document.getElementById('equipConfirmImg').innerHTML = card.img?`<img src="${card.img}" style="width:100%;height:100%;object-fit:contain;">`:`<div style="font-size:22px">${TI[card.type]||'🃏'}</div>`;
+  document.getElementById('equipConfirmName').textContent = card.name;
+  document.getElementById('equipConfirmOverlay').classList.add('open');
+}
+
+function openEquipConfirmWithCard(card){
+  document.getElementById('equipConfirmImg').innerHTML = card.img?`<img src="${card.img}" style="width:100%;height:100%;object-fit:contain;">`:`<div style="font-size:22px">${TI[card.type]||'🃏'}</div>`;
+  document.getElementById('equipConfirmName').textContent = card.name;
+  document.getElementById('equipConfirmOverlay').classList.add('open');
+}
+
+function doEquipConfirm(){
+  if(!equipPendingCard || equipTargetN===null) return;
+  // プレイヤー特定（actionStateかgraveListのdatasetから）
+  const player = (actionState?.player) || (document.getElementById('graveList').dataset.player) || perspective;
+  closeEquipConfirm();
+  pushHistory();
+  // 装備先のイジンにequips追加
+  if(!cells[player][equipTargetN]) return;
+  if(!cells[player][equipTargetN].equips) cells[player][equipTargetN].equips=[];
+  cells[player][equipTargetN].equips.push({...equipPendingCard});
+  // 元の場所から削除
+  if(typeof equipPendingFromN === 'number'){
+    cells[player][equipPendingFromN] = null;
+  } else if(equipPendingFromN?.grave !== undefined){
+    const gs = cells[player][equipPendingFromN.grave]?.graveStack||[];
+    gs.splice(equipPendingFromN.idx,1);
+    if(gs.length===0) cells[player][equipPendingFromN.grave]=null;
+    else cells[player][equipPendingFromN.grave].card=gs[gs.length-1];
+  }
+  equipPendingCard=null; equipPendingFromN=null;
+  equipMode=false; equipTargetN=null; moveState=null;
+  cancelMove();
+  renderAllCells(player,'my');
+}
+
+// デッキへの移動
+let deckMovePendingFrom=null, deckMovePendingPlayer=null;
+
+function moveToDeckTop(){
+  closeDeckMove();
+  _moveToDeck(true);
+}
+function moveToDeckBottom(){
+  closeDeckMove();
+  _moveToDeck(false);
+}
+function _moveToDeck(toTop){
+  const player = deckMovePendingPlayer;
+  const fromN = deckMovePendingFrom;
+  if(!player||fromN===null) return;
+  pushHistory();
+  let card;
+  if(fromN==='deck'){ showToast('デッキからデッキへは移動できません','error'); return; }
+  if(fromN?.fromGrave){
+    const gs=cells[player][fromN.n]?.graveStack||[];
+    card=gs[fromN.graveIdx];
+    gs.splice(fromN.graveIdx,1);
+    if(gs.length===0) cells[player][fromN.n]=null;
+    else cells[player][fromN.n].card=gs.slice(-1)[0];
+  } else {
+    card=cells[player][fromN]?.card;
+    cells[player][fromN]=null;
+  }
+  if(!card) return;
+  if(toTop) deckPile[player].unshift(card);
+  else deckPile[player].push(card);
+  deckMovePendingFrom=null; deckMovePendingPlayer=null;
+  renderAllCells(player,'my');
+}
+
+// 装備カード一覧表示
+function showEquips(){
+  const {player,n,card} = actionState;
+  const state = cells[player][n];
+  const equips = state?.equips||[];
+  const grid = document.getElementById('graveFieldGrid');
+  const allCards = [{...card, _isMain:true},...equips];
+  grid.innerHTML = allCards.map((c,i)=>`
+    <div style="cursor:default;border-radius:6px;overflow:hidden;
+      border:2px solid ${c._isMain?'var(--accent)':'var(--border)'};
+      background:var(--bg2);aspect-ratio:5/7;
+      display:flex;align-items:center;justify-content:center;position:relative;">
+      ${c.img?`<img src="${c.img}" style="width:100%;height:100%;object-fit:contain;">`:`<div style="font-size:16px">${TI[c.type]||'🃏'}</div>`}
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:${CM[c.color]||'#aaa'}"></div>
+    </div>`).join('');
+  grid.dataset.player=player;
+  grid.dataset.n=n;
+  document.getElementById('graveOverlay').style.display='flex';
+}
+
+
+// ハイケイ・マリョクカードから「装備」→イジンゾーンのイジンをハイライト
+let equipSourceN = null;
+let equipSourceCard = null;
+let equipSourceFromGrave = null;
+
+function startEquipFromCard(){
+  const {player,n,card} = actionState;
+  const savedPlayer = player;
+  closeAction();
+  equipMode = true;
+  equipTargetN = null;
+  equipSourceN = n;
+  equipSourceCard = card;
+  equipSourceFromGrave = null;
+  moveState = {player:savedPlayer, n};
+  // イジンゾーンの空きマスをハイライト
+  const allSl = getAllSlots(savedPlayer);
+  allSl.forEach(i=>{
+    const z=ZONES[i], s=cells[savedPlayer][i];
+    const el=document.querySelector(`#myGrid .cell[data-n="${i}"]`);
+    if(!el) return;
+    if(z==='ijin' && !s?.card) el.classList.add('highlight','hl-ijin');
+  });
+  document.getElementById('moveCancelBar').classList.add('show');
+}
+
+function startEquipFromGrave(){
+  const {player,n,card,graveIdx} = actionState;
+  const savedPlayer = player;
+  closeAction();
+  equipMode = true;
+  equipTargetN = null;
+  equipSourceN = null;
+  equipSourceCard = card;
+  equipSourceFromGrave = {n, idx:graveIdx};
+  moveState = {player:savedPlayer, n};
+  // イジンゾーンの空きマスをハイライト
+  const allSl = getAllSlots(savedPlayer);
+  allSl.forEach(i=>{
+    const z=ZONES[i], s=cells[savedPlayer][i];
+    const el=document.querySelector(`#myGrid .cell[data-n="${i}"]`);
+    if(!el) return;
+    if(z==='ijin' && !s?.card) el.classList.add('highlight','hl-ijin');
+  });
+  document.getElementById('moveCancelBar').classList.add('show');
+}
+// ════════════════
+//  Boot
+// ════════════════
+(async()=>{
+  const ok=await initSupabase();
+  if(ok){
+    await loadData();
+    document.getElementById('vsScreen').style.display='flex';
+    ro.observe(document.getElementById('myField'));
+    ro.observe(document.getElementById('opponentField'));
+  }
+})();
+</script>
+</body>
+</html>
